@@ -47,9 +47,16 @@ finance_full <- finance |>
 ## **Viz 1 Manager Percentages  ---- 
 
 finance |> 
-  filter(date == "2024-04-22") |> 
-  tabyl(supervisory_organization_level_3, is_manager) |> 
-  mutate(perc = percent(Yes/NA_, digits = 0)) |> 
+  filter(date == "2024-04-22") |>
+  left_join(finance |>
+              filter(date == "2024-04-22") |> 
+              count(manager_id) |> 
+              rename(direct_reports = n),
+            by = c("employee_id" = "manager_id")) |> 
+  mutate(is_manager_b = if_else(direct_reports >0, "yes", NA)) |> 
+  tabyl(supervisory_organization_level_3, is_manager_b) |> 
+  rowwise() |> 
+  mutate(perc = percent(yes/(yes+NA_), digits = 0)) |> 
   drop_na(supervisory_organization_level_3) |> 
   arrange(desc(perc)) |> 
   mutate(high_ok = if_else(perc <= 0.25, "ok", "high")) |> 
@@ -237,3 +244,29 @@ no stores
 business parters
 countries and currencies
 number of stores
+
+
+# Span checks
+
+finance |>
+  filter(date == "2024-04-22") |>
+  left_join(finance |>
+              filter(date == "2024-04-22") |> 
+              count(manager_id) |> 
+              rename(direct_reports = n),
+            by = c("employee_id" = "manager_id")) |> 
+  mutate(is_manager_b = if_else(direct_reports >0, "yes", NA)) |> 
+  filter(is_manager == "Yes" & is.na(is_manager_b)) |> view()
+
+finance |> tabyl(is_manager)
+
+
+finance |> 
+  filter(date == "2024-04-22") |>
+  left_join(finance |>
+              filter(date == "2024-04-22") |> 
+              count(manager_id) |> 
+              rename(direct_reports = n),
+            by = c("employee_id" = "manager_id")) |> 
+  mutate(is_manager_b = if_else(direct_reports >0, "yes", NA)) |> 
+  tabyl(is_manager_b)

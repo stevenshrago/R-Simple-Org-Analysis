@@ -1,5 +1,5 @@
 library(pacman)
-p_load(tidyverse, janitor, glue, datapasta, formattable, extrafont)
+p_load(tidyverse, janitor, glue, datapasta, formattable, extrafont, WriteXLS)
 
 source("scripts/functions/helpers.r")
 
@@ -14,12 +14,20 @@ data_orig <- readxl::read_xlsx("data_in/230206.xlsx", skip = 3) |>
 
 ## Clean and prepare  ---- 
 
-grade_levels <- c("B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "C4T", "C5", "M1", "M2", "M3", "M4", "M5" ,"E1", "E2")
+grade_levels <- c("B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "C5", "C6", "M1", "M2", "M3", "M4", "M5" ,"E1", "E2", "E3")
 
 grade_levels_overlap <- c("B1", "B2", "B3-C1", "B4-C2", "C3-M1", "C4-M2", "C5-M3", "C6-M4", "C7-M5", "E1", "E2")
 
-finance <- data_orig |> 
-  filter(supervisory_organization_level_2 == "CFO (Meghan Frank)",
+finance <- data_orig |>
+  mutate(supervisory_organization_level_2 = if_else(supervisory_organization_level_2 == "Supply Chain, Distribution, Sourcing (Ted Dagnese)", 
+                                                    "Supply Chain (Ted Dagnese)",
+                                                    supervisory_organization_level_2),
+         compensation_grade = str_remove_all(compensation_grade, "L|N|P|S|T"),
+         compensation_grade = if_else(str_starts(compensation_grade, "R"), 
+                                      str_trunc(compensation_grade, width = 2, side = "right", ellipsis = ""), 
+                                      compensation_grade)) |> 
+  filter(
+    supervisory_organization_level_2 == "Legal (Shannon Higginson)",
          currently_active == "Yes",
          is.na(on_leave)) |> 
   mutate(compensation_grade = factor(compensation_grade, levels = grade_levels),
@@ -57,11 +65,12 @@ finance |>
   tabyl(supervisory_organization_level_3, is_manager_b) |> 
   rowwise() |> 
   mutate(perc = percent(yes/(yes+NA_), digits = 0)) |> 
-  drop_na(supervisory_organization_level_3) |> 
+  drop_na(supervisory_organization_level_3) |>
+  filter(yes > 0) |> 
   arrange(desc(perc)) |> 
   mutate(high_ok = if_else(perc <= 0.25, "ok", "high")) |> 
   ggplot(aes(x = reorder(supervisory_organization_level_3, perc), y = perc)) +
-  geom_rect(aes(xmin = 0, xmax = 7, ymin = 0.15, ymax = .25), fill = neutral_5) +
+  geom_rect(aes(xmin = 0, xmax = 4, ymin = 0.15, ymax = .25), fill = neutral_5) +
   geom_col(aes(fill = high_ok)) +
   geom_text(aes(y = perc/2, label = perc), color = offwhite, family = lulu_font, fontface = "bold") +
   geom_hline(yintercept = 0.15, color = offblack, linetype = "dashed") +
@@ -150,10 +159,10 @@ finance |>
   group_by(supervisory_organization_level_3) |> 
   summarise(average_span = round(mean(direct_reports, na.rm = TRUE),1.1)) |> 
   arrange(desc(average_span)) |>
-  drop_na(supervisory_organization_level_3) |> 
+  drop_na(supervisory_organization_level_3, average_span) |> 
   mutate(low_ok = if_else(average_span >= 4 & average_span <= 7, "ok", "low")) |> 
   ggplot(aes(x = reorder(supervisory_organization_level_3, average_span), y = average_span)) +
-  geom_rect(aes(xmin = 0, xmax = 8, ymin = 4, ymax = 7), fill = neutral_5) +
+  geom_rect(aes(xmin = 0, xmax = 4, ymin = 4, ymax = 7), fill = neutral_5) +
   geom_col(aes(fill = low_ok)) +
   geom_hline(yintercept = 4, color = neutral_3, linetype = "dashed") +
   geom_hline(yintercept = 7, color = neutral_3, linetype = "dashed") +
@@ -194,7 +203,7 @@ finance_full |>
 
 
 
-## Grade development  ---- 
+## Vix 6 Grade development  ---- 
 
 finance |> 
   tabyl(comp_grade_overlap, date, show_na = FALSE) |> 
@@ -218,9 +227,44 @@ finance |>
 
 
 
+## Data packs  ---- 
+
+# Low spans
+finance |>
+  filter(date == "2024-04-22") |>
+  left_join(finance |>
+              filter(date == "2024-04-22") |> 
+              count(manager_id) |> 
+              rename(direct_reports = n),
+            by = c("employee_id" = "manager_id")) |>
+  filter(direct_reports >0 & direct_reports < 4) |> 
+  select(employee_id, employee, compensation_grade, direct_reports) |> 
+  arrange(desc(compensation_grade), desc(direct_reports)) |> 
+  WriteXLS()
+
+# Compression
+finance_full |> 
+  filter(date == "2024-04-22",
+         comp_grade_overlap == comp_grade_overlap_mgr) |>
+  select(supervisory_organization_level_3, employee_id, employee, compensation_grade, manager_id, employee_mgr, compensation_grade_mgr) |> 
+  arrange(desc(supervisory_organization_level_3), desc(compensation_grade))
+  
+
+  
+
+
+data_orig |> 
+  distinct(compensation_grade) |> 
+  arrange(compensation_grade) |>  view()
+
+
+
 
 ## zOther  ---- 
  
+
+data_orig |> distinct(supervisory_organization_level_2)
+
 
 finance |> 
   tabyl(comp_grade_simple, date)

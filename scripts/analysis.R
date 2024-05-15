@@ -27,7 +27,7 @@ finance <- data_orig |>
                                       str_trunc(compensation_grade, width = 2, side = "right", ellipsis = ""), 
                                       compensation_grade)) |> 
   filter(
-    supervisory_organization_level_2 == "Legal (Shannon Higginson)",
+    # supervisory_organization_level_2 == "Legal (Shannon Higginson)",
          currently_active == "Yes",
          is.na(on_leave)) |> 
   mutate(compensation_grade = factor(compensation_grade, levels = grade_levels),
@@ -50,6 +50,7 @@ managers <- finance |>
 
 finance_full <- finance |> 
   left_join(managers, by = c("date", "manager_id" = "employee_id"), suffix = c("", "_mgr"))
+
 
 
 ## **Viz 1 Manager Percentages  ---- 
@@ -183,14 +184,19 @@ finance |>
 
 ## Viz 5 Compression  ---- 
 
+slt_areas <- c("Americas and Global Guest Innovation (Celeste Burgoyne)", "CFO (Meghan Frank)", "People & Culture (Susan Gelinas)", "Design and Merchandising (Sun Choe)", "Supply Chain (Ted Dagnese)", "Brand & Creative Content (Nikki Neuburger)", "Technology (Julie Averill)", "International (Andre Maestrini)", "Legal (Shannon Higginson)")
+
+target <- "International (Andre Maestrini)"
+
 finance_full |> 
+  filter(supervisory_organization_level_2 == target) |> 
   filter(comp_grade_overlap == comp_grade_overlap_mgr,
          date == "2024-04-22") |> 
   count(supervisory_organization_level_4, comp_grade_overlap) |> 
   ggplot(aes(x = comp_grade_overlap, y = n)) +
   geom_col(fill = neutral_3) +
   geom_text(aes(y = n/2, label = n), family = lulu_font, colour = offwhite, fontface = "bold") +
-  facet_wrap(~ supervisory_organization_level_4) +
+  facet_wrap(~ supervisory_organization_level_4, scales = "free_y") +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   standard_text_y(bold = FALSE) +
@@ -200,12 +206,10 @@ finance_full |>
        y = "Number of compressed reporting relationships")
 
 
-
-
-
 ## Vix 6 Grade development  ---- 
 
 finance |> 
+  filter(supervisory_organization_level_2 == target) |> 
   tabyl(comp_grade_overlap, date, show_na = FALSE) |> 
   rename("Feb2023" = "2023-02-06",
          "Apr2024" = "2024-04-22") |> 
@@ -229,34 +233,58 @@ finance |>
 
 ## Data packs  ---- 
 
+
+slt_areas <- c("Americas and Global Guest Innovation (Celeste Burgoyne)", "CFO (Meghan Frank)", "People & Culture (Susan Gelinas)", "Design and Merchandising (Sun Choe)", "Supply Chain (Ted Dagnese)", "Brand & Creative Content (Nikki Neuburger)", "Technology (Julie Averill)", "International (Andre Maestrini)", "Legal (Shannon Higginson)")
+
 # Low spans
+
+for (i in slt_areas) {
+
 finance |>
-  filter(date == "2024-04-22") |>
+  filter(date == "2024-04-22",
+         supervisory_organization_level_2 == i) |>
   left_join(finance |>
               filter(date == "2024-04-22") |> 
               count(manager_id) |> 
               rename(direct_reports = n),
             by = c("employee_id" = "manager_id")) |>
   filter(direct_reports >0 & direct_reports < 4) |> 
-  select(employee_id, employee, compensation_grade, direct_reports) |> 
-  arrange(desc(compensation_grade), desc(direct_reports)) |> 
-  WriteXLS()
+  select(supervisory_organization_level_3, employee_id, employee, compensation_grade, direct_reports) |> 
+  arrange(supervisory_organization_level_3, desc(compensation_grade), desc(direct_reports)) |> 
+  write_excel_csv(glue("data_out/low_spans_{i}.csv"))
 
+}
+  
 # Compression
+
+for (i in slt_areas) {
+
 finance_full |> 
   filter(date == "2024-04-22",
+         supervisory_organization_level_2 == i,
          comp_grade_overlap == comp_grade_overlap_mgr) |>
   select(supervisory_organization_level_3, employee_id, employee, compensation_grade, manager_id, employee_mgr, compensation_grade_mgr) |> 
-  arrange(desc(supervisory_organization_level_3), desc(compensation_grade))
+  arrange(desc(supervisory_organization_level_3), desc(compensation_grade)) |> 
+    write_excel_csv(glue("data_out/compression_{i}.csv"))
   
 
+}
+
+
+# Project managers
+
+for (i in slt_areas) {
   
-
-
-data_orig |> 
-  distinct(compensation_grade) |> 
-  arrange(compensation_grade) |>  view()
-
+  finance_full |> 
+    filter(date == "2024-04-22",
+           supervisory_organization_level_2 == i,
+           str_detect(job_title, "(P|p)ro(g|j)")) |>
+    select(supervisory_organization_level_3, employee_id, employee, job_title) |> 
+    arrange(desc(supervisory_organization_level_3), desc(job_title)) |> 
+    write_excel_csv(glue("data_out/project_managers_{i}.csv"))
+  
+  
+}
 
 
 
@@ -266,8 +294,8 @@ data_orig |>
 data_orig |> distinct(supervisory_organization_level_2)
 
 
-finance |> 
-  tabyl(comp_grade_simple, date)
+data_orig |> 
+  tabyl(compensation_grade, date)
 
 finance |> tabyl(date)
 

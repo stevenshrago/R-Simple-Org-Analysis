@@ -89,8 +89,10 @@ offwhite <-  "#fffff5"
 offblack <-  "#1e140e"
 hotheat <- "#ff4546"
 
-blue = "#6094ef"
+blue = "#c7d7fb"
 yellow = "#f2ff91"
+lightergreen = "#d5e0d4"
+lightgreen = "#c0e7c5"
 green = "#6bb2a0"
 
 neutral_1 = "#130a0a"

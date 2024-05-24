@@ -81,7 +81,7 @@ c(
   )
 
 
-focus <- "Legal (Shannon Higginson)"
+focus <- "International (Andre Maestrini)"
 
 data_focus <- data_full |> 
   filter(supervisory_organization_level_2 == focus)
@@ -414,16 +414,11 @@ slt_areas <- c("Americas and Global Guest Innovation (Celeste Burgoyne)", "CFO (
 
 for (i in slt_areas) {
 
-finance |>
-  filter(date == "2024-04-22",
+data_full |>
+  filter(report_effective_date == "May 2024",
          supervisory_organization_level_2 == i) |>
-  left_join(finance |>
-              filter(date == "2024-04-22") |> 
-              count(manager_id) |> 
-              rename(direct_reports = n),
-            by = c("employee_id" = "manager_id")) |>
-  filter(direct_reports >0 & direct_reports < 4) |> 
-  select(supervisory_organization_level_3, employee_id, employee, compensation_grade, direct_reports) |> 
+  filter(direct_reports > 0 & direct_reports < 4) |> 
+  select(supervisory_organization_level_3, position_id_worker, worker_name, compensation_grade, direct_reports) |> 
   arrange(supervisory_organization_level_3, desc(compensation_grade), desc(direct_reports)) |> 
   write_excel_csv(glue("data_out/low_spans_{i}.csv"))
 
@@ -433,11 +428,11 @@ finance |>
 
 for (i in slt_areas) {
 
-finance_full |> 
-  filter(date == "2024-04-22",
+data_full |> 
+  filter(report_effective_date == "May 2024",
          supervisory_organization_level_2 == i,
          comp_grade_overlap == comp_grade_overlap_mgr) |>
-  select(supervisory_organization_level_3, employee_id, employee, compensation_grade, manager_id, employee_mgr, compensation_grade_mgr) |> 
+  select(supervisory_organization_level_3, position_id_worker, worker_name, compensation_grade, position_id_manager, worker_name_mgr, compensation_grade_mgr) |> 
   arrange(desc(supervisory_organization_level_3), desc(compensation_grade)) |> 
     write_excel_csv(glue("data_out/compression_{i}.csv"))
   
@@ -449,11 +444,11 @@ finance_full |>
 
 for (i in slt_areas) {
   
-  finance_full |> 
-    filter(date == "2024-04-22",
+  data_full |> 
+    filter(report_effective_date == "May 2024",
            supervisory_organization_level_2 == i,
            str_detect(job_title, "(P|p)ro(g|j)")) |>
-    select(supervisory_organization_level_3, employee_id, employee, job_title) |> 
+    select(supervisory_organization_level_3, position_id_worker, worker_name, job_title) |> 
     arrange(desc(supervisory_organization_level_3), desc(job_title)) |> 
     write_excel_csv(glue("data_out/project_managers_{i}.csv"))
   

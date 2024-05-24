@@ -5,26 +5,7 @@ source("scripts/functions/helpers.r")
 
 ## Load data  ---- 
 
-# data_orig <- readxl::read_xlsx("data_in/230206.xlsx", skip = 3) |> 
-#   clean_names() |>
-#   mutate(date = "2023-02-06") |> 
-#   bind_rows(readxl::read_xlsx("data_in/240422.xlsx", skip = 3) |> 
-#               clean_names() |> 
-#               mutate(date = "2024-04-22"))
-# 
-# new_data <- readxl::read_xlsx("data_in/240503.xlsx") |> 
-#   clean_names() |> 
-#   mutate(date = "2024-05-03")
-# 
-# janitor::compare_df_cols(data_orig, new_data)
-
-
 data_orig <- readxl::read_xlsx("data_in/3ydata.xlsx", sheet = 2, .name_repair = make_clean_names)
-
-data_orig |> glimpse()
-
-data_orig |> 
-  tabyl()
 
 ## Clean and prepare  ---- 
 
@@ -65,8 +46,15 @@ direct_reports <- data_ready |>
 
 data_full <- data_ready |> 
   left_join(managers, by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("", "_mgr")) |> 
-  left_join(direct_reports, by = c("report_effective_date", "position_id_worker"))
+  left_join(direct_reports, by = c("report_effective_date", "position_id_worker")) |> 
+  # fixes
+  mutate(supervisory_organization_level_3 = case_when(supervisory_organization_level_3 == "Member Engagement (TJ Whitmell)" ~ "Member Engagement (Jiamei Bai)",
+                                                       supervisory_organization_level_3 == "Global Guest Innovation (Maureen Erickson)" ~ "AGGI Strategic Enablement & New Business (Maureen Erickson)",
+                                                       supervisory_organization_level_3 == "North America Integrated Marketing (Rebecca Marstaller)" ~ "NA Brand Marketing (Rebecca Marstaller)",
+                                                       .default = supervisory_organization_level_3))
 
+data_focus |>tabyl(supervisory_organization_level_3)
+  
 
 c(
   "Americas and Global Guest Innovation (Celeste Burgoyne)",
@@ -81,7 +69,7 @@ c(
   )
 
 
-focus <- "International (Andre Maestrini)"
+focus <- "Americas and Global Guest Innovation (Celeste Burgoyne)"
 
 data_focus <- data_full |> 
   filter(supervisory_organization_level_2 == focus)
@@ -182,7 +170,7 @@ data_focus |>
   theme_clean_lulu() +
   standard_text_y(bold = FALSE) +
   standard_text_x(bold = FALSE) +
-  scale_fill_manual(values = c("ok" = offwhite,
+  scale_fill_manual(values = c("ok" = lightgreen,
                                "low" = hotheat)) +
   scale_color_manual(values = c("ok" = offblack,
                                 "low" = offwhite))
@@ -263,13 +251,13 @@ data_focus |>
   geom_label(aes(x = report_effective_date, y = ll_exec_perc, label = ll_exec_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
   geom_label(aes(x = report_effective_date, y = exec_perc, label = exec_perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
   labs(title = glue("Executive roles percentage: {focus}"),
-       subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external bechmark (<=2%)") +
+       subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external benchmark (<=2%)") +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   standard_text_y(bold = FALSE) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0,0.05)) +
 
-  scale_fill_manual(values = c("ok" = offwhite,
+  scale_fill_manual(values = c("ok" = lightgreen,
                                "high" = hotheat)) +
   scale_color_manual(values = c("ok" = offblack,
                                 "high" = offwhite))
@@ -326,20 +314,25 @@ data_focus |>
               drop_na(comp_grade_overlap) |> 
               group_by(report_effective_date) |> 
               mutate(ll_perc = percent(n/sum(n, na.rm = TRUE), digits = 1)), by = c("report_effective_date", "comp_grade_overlap")
-              ) |> 
+              ) |>
+  mutate(above_ave = if_else(perc > ll_perc, "above", "ok")) |> 
   
   ggplot() +
   geom_line(aes(x = report_effective_date, y = perc, group = comp_grade_overlap), color = offblack, size = 1) +
   geom_line(aes(x = report_effective_date, y = ll_perc, group = comp_grade_overlap), color = neutral_3, size = 0.5, linetype = "dashed") +
   geom_label(aes(label = ll_perc, x = report_effective_date, y = ll_perc), fill = offwhite, color = neutral_3, label.size = 0, family = lulu_font) +
-  geom_label(aes(label = perc, x = report_effective_date, y = perc), fill = offwhite, color = offblack, family = lulu_font) +
+  geom_label(aes(label = perc, x = report_effective_date, y = perc, fill = above_ave, color = above_ave), fontface = "bold", family = lulu_font) +
   facet_wrap(~ comp_grade_overlap) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   labs(title = glue("Grade development: {focus}"),
        subtitle = "Percentage of roles at each grade level over time vs lululemon average",
-       x = "Compensation grade levels")
+       x = "Compensation grade levels") +
+  scale_fill_manual(values = c("above" = hotheat,
+                               "ok" = offwhite)) +
+  scale_color_manual(values = c("above" = offwhite,
+                                "ok" = offblack))
 
 
 
@@ -394,7 +387,7 @@ data_focus |>
   
   facet_wrap(~ supervisory_organization_level_3) +
   theme_clean_lulu() +
-  # standard_text_y(bold = FALSE) +
+  standard_text_x(bold = FALSE) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   labs(title = glue("Low spans of control: {focus}"),
        subtitle = "Percentage of managers with 3 or fewer direct reports over time vs lululemon average (dotted line)",
@@ -454,60 +447,3 @@ for (i in slt_areas) {
   
   
 }
-
-
-
-## zOther  ---- 
- 
-
-data_orig |> distinct(supervisory_organization_level_2)
-
-
-data_orig |> 
-  tabyl(compensation_grade, date)
-
-finance |> tabyl(date)
-
-# Grade percentages
-
-finance |> 
-  group_by(date, comp_grade_simple) |> 
-  summarise(n = n()) |> 
-  drop_na(comp_grade_simple) |> 
-  mutate(perc = percent(n/sum(n), digits = 1)) |> 
-  pivot_wider(date, names_from = comp_grade_simple, values_from = c("n", "perc"))
-
-
-# Project managers
-
-finance_full |> filter(str_detect(job_title, "(P|p)ro(g|j)")) |> view()
-no stores
-business parters
-countries and currencies
-number of stores
-
-
-# Span checks
-
-finance |>
-  filter(date == "2024-04-22") |>
-  left_join(finance |>
-              filter(date == "2024-04-22") |> 
-              count(manager_id) |> 
-              rename(direct_reports = n),
-            by = c("employee_id" = "manager_id")) |> 
-  mutate(is_manager_b = if_else(direct_reports >0, "yes", NA)) |> 
-  filter(is_manager == "Yes" & is.na(is_manager_b)) |> view()
-
-finance |> tabyl(is_manager)
-
-
-finance |> 
-  filter(date == "2024-04-22") |>
-  left_join(finance |>
-              filter(date == "2024-04-22") |> 
-              count(manager_id) |> 
-              rename(direct_reports = n),
-            by = c("employee_id" = "manager_id")) |> 
-  mutate(is_manager_b = if_else(direct_reports >0, "yes", NA)) |> 
-  tabyl(is_manager_b)

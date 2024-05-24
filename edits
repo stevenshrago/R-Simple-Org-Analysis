@@ -1,0 +1,9 @@
+x axis missing - added x axis to low spans; in small multiple graphs x-axis is onlt at the bottom
+benchmark misspelling - fixed
+using OrgVue for whole org mgr percent and ave span = ok
+
+Jiamei for member engagement - manual edit to underlying data
+Missing commpression because there was no compression in those snapshots
+grade development - added formatting
+% exec roles - coloring is dependent on being within the grey/benchmark range, not dependent on lululemon average (see mnager percentages)
+

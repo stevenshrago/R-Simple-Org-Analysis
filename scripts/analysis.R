@@ -54,19 +54,18 @@ data_ready <- data_orig |>
                                         .default = compensation_grade), levels = grade_levels_overlap),
          report_effective_date = paste0(month(report_effective_date, label = TRUE), " ", year(report_effective_date)))
 
-data_ready |> tabyl(report_effective_date)
-
 
 managers <- data_ready |> 
   select(report_effective_date, position_id_worker, position_id_manager, job_title, compensation_grade, comp_grade_overlap, worker_name)
 
 direct_reports <- data_ready |> 
   count(report_effective_date, position_id_manager) |> 
-  rename(direct_reports = n)
+  rename(direct_reports = n,
+         position_id_worker = position_id_manager)
 
 data_full <- data_ready |> 
   left_join(managers, by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("", "_mgr")) |> 
-  left_join(direct_reports, by = c("report_effective_date", "position_id_manager"))
+  left_join(direct_reports, by = c("report_effective_date", "position_id_worker"))
 
 
 c(
@@ -82,7 +81,7 @@ c(
   )
 
 
-focus <- "People & Culture (Susan Gelinas)"
+focus <- "Legal (Shannon Higginson)"
 
 data_focus <- data_full |> 
   filter(supervisory_organization_level_2 == focus)
@@ -93,31 +92,49 @@ data_focus |>
   group_by(report_effective_date, supervisory_organization_level_3, is_manager) |>
   summarize(n = n()) |>
   mutate(is_manager = replace_na(is_manager, "No")) |> 
-  pivot_wider(id_cols = c(report_effective_date, supervisory_organization_level_3), names_from = is_manager, values_from = n) |> 
+  pivot_wider(id_cols = c(report_effective_date, supervisory_organization_level_3), names_from = is_manager, values_from = n) |>
+  mutate(Yes = Yes+1) |>
   summarize(perc = percent(Yes/(Yes+No), digits = 0))|> 
   drop_na(supervisory_organization_level_3) |>
-  filter(perc > 0) |> 
-  arrange(desc(perc)) |> 
+  filter(perc > 0) |>
+  
+  left_join(data_full |> 
+              group_by(report_effective_date, is_manager) |> 
+              summarise(n = n()) |> 
+              mutate(is_manager = replace_na(is_manager, "No")) |> 
+              pivot_wider(id_cols = c(report_effective_date), names_from = is_manager, values_from = n) |> 
+              summarize(ll_perc = percent(Yes/(Yes+No), digits = 0)),
+            by = c("report_effective_date")) |> 
+  
+  right_join(data_focus |> 
+               distinct(report_effective_date, supervisory_organization_level_3) |> 
+               expand(report_effective_date, supervisory_organization_level_3)) |>
+  ungroup() |> 
+  mutate(trim = if_else(report_effective_date == "May 2024" & is.na(perc), supervisory_organization_level_3, NA)) |>
+  filter(!supervisory_organization_level_3 %in% trim) |> 
   mutate(high_ok_low = case_when(perc >= 0.25 ~ "high",
                                  perc <= 0.15 ~ "low",
                                  .default = "ok")) |> 
-  ggplot(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_3)) +
-  geom_line() +
+  
+  ggplot() +
   geom_rect(aes(xmin = 0, xmax = 4, ymin = 0.15, ymax = .25), fill = neutral_5) +
+  geom_line(aes(x = report_effective_date, y = ll_perc, group = supervisory_organization_level_3), color = offblack, size = 0.5, linetype = "dashed") +
+  geom_line(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_3), color = offblack, size = 1) +
   facet_wrap(~ supervisory_organization_level_3) +
-  geom_hline(yintercept = 0.15, color = offblack, linetype = "dashed") +
-  geom_hline(yintercept = 0.25, color = offblack, linetype = "dashed") +
-  geom_label(aes(label = perc, fill = high_ok_low, color = high_ok_low), family = lulu_font, fontface = "bold") +
+  geom_hline(yintercept = 0.15, color = neutral_4, linetype = "dashed") +
+  geom_hline(yintercept = 0.25, color = neutral_4, linetype = "dashed") +
+  geom_label(aes(x = report_effective_date, y = ll_perc, label = ll_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
+  geom_label(aes(x = report_effective_date, y = perc, label = perc, fill = high_ok_low, color = high_ok_low), family = lulu_font, fontface = "bold") +
   theme_clean_lulu() +
   standard_text_y(bold = FALSE) +
   standard_text_x(bold = FALSE) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(title = "Line managers as a percentage of total team headcount",
-       subtitle = "Development over time",
+  labs(title = glue("Percentage of line managers: {focus}"),
+       subtitle = "Line managers as a percentage of roles over time vs lululemon average and external benchmark (15-25%)",
        x = "Date",
        y = "Manager perentage") +
   scale_fill_manual(values = c("high" = hotheat,
-                               "ok" = offwhite,
+                               "ok" = lightgreen,
                                "low" = blue)) +
   scale_color_manual(values = c("high" = offwhite,
                                 "ok" = offblack,
@@ -126,11 +143,30 @@ data_focus |>
 
 ## 2 Average span of control  ---- 
 
+
+
 data_focus |>
-  group_by(report_effective_date, supervisory_organization_level_3) |> 
-  summarise(average_span = round(mean(direct_reports, na.rm = TRUE),1.1)) |> 
-  arrange(desc(average_span)) |>
+  left_join(data_focus |>
+              distinct(report_effective_date, supervisory_organization_level_3) |>
+              mutate(worker_name = str_extract(supervisory_organization_level_3, "(?<=\\()[^()]+(?=\\))")) |>
+              drop_na(supervisory_organization_level_3),
+            by = c("worker_name", "report_effective_date"), suffix = c("", ".b")) |>
+  mutate(supervisory_organization_level_3 = coalesce(supervisory_organization_level_3, supervisory_organization_level_3.b)) |>
+  
+  group_by(report_effective_date, supervisory_organization_level_3) |>
+  summarise(average_span = round(mean(direct_reports, na.rm = TRUE),1.1)) |>
+  drop_na(supervisory_organization_level_3) |> 
+  
+  right_join(data_focus |>
+               distinct(report_effective_date, supervisory_organization_level_3) |>
+               expand(report_effective_date, supervisory_organization_level_3)) |>
+  ungroup() |>
+  mutate(trim = if_else(report_effective_date == "May 2024" & is.na(average_span), supervisory_organization_level_3, NA)) |>
+  filter(!supervisory_organization_level_3 %in% trim) |>
+  
   drop_na(supervisory_organization_level_3, average_span) |> 
+  
+  
   mutate(low_ok = if_else(average_span >= 5 & average_span <= 8, "ok", "low")) |> 
   ggplot(aes(x = report_effective_date, y = average_span, group = supervisory_organization_level_3)) +
   geom_rect(aes(xmin = 0, xmax = 4, ymin = 5, ymax = 8), fill = neutral_5) +
@@ -139,8 +175,8 @@ data_focus |>
   geom_hline(yintercept = 5, color = neutral_3, linetype = "dashed") +
   geom_hline(yintercept = 8, color = neutral_3, linetype = "dashed") +
   geom_label(aes(label = average_span, fill = low_ok, color = low_ok), family = lulu_font, fontface = "bold") +
-  labs(title = "Average span of control over time",
-       subtitle = "Excluding L3 leader",
+  labs(title = "Average span of control",
+       subtitle = "Average number of direct reports over time vs lululemon average (dotted line) and best practice guidelines (5 to 8)",
        x = "Date",
        y = "Average span of control") +
   theme_clean_lulu() +
@@ -162,17 +198,41 @@ data_focus |>
               count(report_effective_date, supervisory_organization_level_3),
             by = c("report_effective_date", "supervisory_organization_level_3")) |> 
   group_by(report_effective_date, supervisory_organization_level_3) |> 
-  reframe(perc = percent(n.x/n.y, digits = 1)) |> 
-  ggplot(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_3)) +
-  geom_line() +
+  reframe(perc = percent(n.x/n.y, digits = 1)) |>
+  
+  # Remove old teams
+  right_join(data_focus |>
+              distinct(report_effective_date, supervisory_organization_level_3) |>
+              expand(report_effective_date, supervisory_organization_level_3)) |>
+  ungroup() |>
+  mutate(trim = if_else(report_effective_date == "May 2024" & is.na(perc), supervisory_organization_level_3, NA)) |>
+  filter(!supervisory_organization_level_3 %in% trim) |>
+  drop_na(supervisory_organization_level_3, perc) |> 
+  
+  left_join(data_full |> 
+              mutate(compression = if_else(comp_grade_overlap == comp_grade_overlap_mgr, "compressed", "ok")) |>
+              count(report_effective_date, compression) |> 
+              drop_na(compression) |> 
+              pivot_wider(id_cols = report_effective_date, names_from = compression, values_from = n) |> 
+              mutate(ll_perc = percent(compressed/(compressed+ok), digits = 1)), by = c("report_effective_date")) |> 
+  mutate(above_ave = if_else(perc > ll_perc, "above", "ok")) |> 
+  
+  ggplot() +
+  geom_line(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_3), color = offblack, size = 1) +
+  geom_line(aes(x = report_effective_date, y = ll_perc, group = supervisory_organization_level_3), color = neutral_3, linetype = "dashed", size = 0.5) +
   facet_wrap(~supervisory_organization_level_3) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  geom_label(aes(label = perc), family = lulu_font, colour = offblack, fontface = "bold") +
+  geom_label(aes(label = ll_perc, x = report_effective_date, y = ll_perc), family = lulu_font, colour = neutral_3, label.size = 0) +
+  geom_label(aes(label = perc, x = report_effective_date, y = perc, fill = above_ave, color = above_ave), family = lulu_font, fontface = "bold") +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   # standard_text_y(bold = FALSE) +
-  labs(title = "Grade compression as a percentage of all roles over time",
-       subtitle = "Employees reporting to a manager at the same contribution level")
+  labs(title = glue("Grade compression: {focus}"),
+       subtitle = "Compressed roles as a percentage of total roles compared to the lululemon average (dotted line)") +
+  scale_fill_manual(values = c("above" = hotheat,
+                               "ok" = offwhite)) +
+  scale_color_manual(values = c("above" = offwhite,
+                                "ok" = offblack))
 
 
 ## 4 Executive development  ---- 
@@ -184,14 +244,26 @@ data_focus |>
   drop_na(exec) |> 
   pivot_wider(id_cols = c("report_effective_date", "supervisory_organization_level_2"), names_from = exec, values_from = n) |> 
   summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |>
+  
+  left_join(data_full |> 
+              mutate(exec = if_else(str_detect(compensation_grade, "E"), "exec", "non")) |> 
+              group_by(report_effective_date, exec) |> 
+              summarise(n = n()) |> 
+              drop_na(exec) |> 
+              pivot_wider(id_cols = c("report_effective_date"), names_from = exec, values_from = n) |> 
+              summarise(ll_exec_perc = percent(exec/(exec+non), digits = 1)), by = c("report_effective_date")
+            ) |> 
+  
   mutate(vsbm = if_else(exec_perc > 0.02, "high", "ok")) |> 
-  ggplot(aes(x = report_effective_date, y = exec_perc, group = supervisory_organization_level_2)) +
-  geom_hline(aes(yintercept = 0.02), color = offblack, linetype = "dashed") +
+  ggplot() +
   geom_rect(aes(xmin = 0.5, xmax = 3.5, ymin = 0, ymax = .02), fill = neutral_5) +
-  geom_line(color = offblack, size = 1) +
-  geom_label(aes(label = exec_perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
-  labs(title = "Executive roles percentage over time",
-       subtitle = "VP+ roles within supervisory organization") +
+  geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dashed") +
+  geom_line(aes(x = report_effective_date, y = exec_perc, group = supervisory_organization_level_2), color = offblack, size = 1) +
+  geom_line(aes(x = report_effective_date, y = ll_exec_perc, group = supervisory_organization_level_2), color = neutral_3, size = 0.5, linetype = "dashed") +
+  geom_label(aes(x = report_effective_date, y = ll_exec_perc, label = ll_exec_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
+  geom_label(aes(x = report_effective_date, y = exec_perc, label = exec_perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
+  labs(title = glue("Executive roles percentage: {focus}"),
+       subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external bechmark (<=2%)") +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   standard_text_y(bold = FALSE) +
@@ -205,56 +277,132 @@ data_focus |>
 
 ## 5 Project Managers  ----
 
+
 data_focus |>
   mutate(pjm = if_else(str_detect(job_title, "(P|p)ro(g|j)"), "Yes", "No")) |> 
   count(report_effective_date, supervisory_organization_level_2, pjm) |> 
   pivot_wider(id_cols = 1:2, names_from = pjm, values_from = n) |> 
   group_by(report_effective_date, supervisory_organization_level_2) |> 
-  summarize(perc = percent(Yes/(Yes+No), digits = 1)) |> 
+  summarize(perc = percent(Yes/(Yes+No), digits = 1)) |>
+  left_join(data_full |> 
+              mutate(pjm = if_else(str_detect(job_title, "(P|p)ro(g|j)"), "Yes", "No")) |> 
+              count(report_effective_date, pjm) |> 
+              pivot_wider(id_cols = 1, names_from = pjm, values_from = n) |> 
+              group_by(report_effective_date) |> 
+              summarize(ll_perc = percent(Yes/(Yes+No), digits = 1)), by = c("report_effective_date")) |> 
   mutate(vsbm = if_else(perc > 0.01, "high", "ok")) |>
-  ggplot(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_2)) +
-  geom_hline(aes(yintercept = 0.02), color = offblack, linetype = "dashed") +
-  geom_rect(aes(xmin = 0.5, xmax = 3.5, ymin = 0, ymax = .02), fill = neutral_5) +
-  geom_line(color = offblack, size = 1) +
-  geom_label(aes(label = perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
-  labs(title = "Project & program management roles percentage over time",
-       subtitle = "") +
+  ggplot() +
+  geom_rect(aes(xmin = 0.5, xmax = 3.5, ymin = 0, ymax = .01), fill = neutral_5) +
+  geom_hline(aes(yintercept = 0.01), color = neutral_4, linetype = "dashed") +
+  
+  geom_line(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_2), color = offblack, size = 1) +
+  geom_line(aes(x = report_effective_date, y = ll_perc, group = supervisory_organization_level_2), color = neutral_4, size = 0.5, linetype = "dashed") +
+  
+  geom_label(aes(x = report_effective_date, y = perc, label = perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
+  geom_label(aes(x = report_effective_date, y = ll_perc, label = ll_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
+  labs(title = glue("Project & Program management roles: {focus}"),
+       subtitle = "Percentage of Project and Program Management roles over time vs lululemon average (dotted line) and external benchmark (<=1%)") +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   standard_text_y(bold = FALSE) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  scale_fill_manual(values = c("ok" = offwhite,
+  scale_fill_manual(values = c("ok" = lightgreen,
                                "high" = hotheat)) +
   scale_color_manual(values = c("ok" = offblack,
                                 "high" = offwhite))
 
 
-## Vix 6 Grade development  ---- 
+ ## 6 Grade development  ---- 
 
-
-
-
-finance |> 
-  filter(supervisory_organization_level_2 == target) |> 
-  tabyl(comp_grade_overlap, date, show_na = FALSE) |> 
-  rename("Feb2023" = "2023-02-06",
-         "Apr2024" = "2024-04-22") |> 
-  mutate(across(2:3, ~ percent(.x/sum(.x), digits = 1))) |> 
-  pivot_longer(2:3) |> 
-  ggplot(aes(x = comp_grade_overlap, y = value, group = desc(name))) +
-  geom_col(aes(fill = name), position = position_dodge(width = 1)) +
-  geom_text(aes(label = value, y = value/2), position = position_dodge(width = 1), family = lulu_font, color = offblack, size = 3) +
+data_focus |> 
+  count(report_effective_date, supervisory_organization_level_2, comp_grade_overlap) |>
+  drop_na(comp_grade_overlap) |> 
+  group_by(report_effective_date) |> 
+  mutate(perc = percent(n/sum(n, na.rm = TRUE), digits = 1)) |>
+  
+  # Add lululemon average
+  left_join(data_full |> 
+              count(report_effective_date, comp_grade_overlap) |>
+              drop_na(comp_grade_overlap) |> 
+              group_by(report_effective_date) |> 
+              mutate(ll_perc = percent(n/sum(n, na.rm = TRUE), digits = 1)), by = c("report_effective_date", "comp_grade_overlap")
+              ) |> 
+  
+  ggplot() +
+  geom_line(aes(x = report_effective_date, y = perc, group = comp_grade_overlap), color = offblack, size = 1) +
+  geom_line(aes(x = report_effective_date, y = ll_perc, group = comp_grade_overlap), color = neutral_3, size = 0.5, linetype = "dashed") +
+  geom_label(aes(label = ll_perc, x = report_effective_date, y = ll_perc), fill = offwhite, color = neutral_3, label.size = 0, family = lulu_font) +
+  geom_label(aes(label = perc, x = report_effective_date, y = perc), fill = offwhite, color = offblack, family = lulu_font) +
+  facet_wrap(~ comp_grade_overlap) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
-  scale_fill_manual(values = c("Feb2023" = neutral_4, 
-                              "Apr2024" = neutral_3)) + 
-  standard_legend()+
-  guides(fill = guide_legend(reverse = TRUE)) +
-  labs(title = "Grade development in the last year",
-       subtitle = "Percentage of total organization at each comp grade level between 2023 and 2024",
+  labs(title = glue("Grade development: {focus}"),
+       subtitle = "Percentage of roles at each grade level over time vs lululemon average",
        x = "Compensation grade levels")
-  
 
+
+
+## 7 Low spans over time  ---- 
+
+data_focus |>
+  # Add L3 leaders to the calculation
+  left_join(data_focus |>
+              distinct(report_effective_date, supervisory_organization_level_3) |>
+              mutate(worker_name = str_extract(supervisory_organization_level_3, "(?<=\\()[^()]+(?=\\))")) |>
+              drop_na(supervisory_organization_level_3),
+            by = c("worker_name", "report_effective_date"), suffix = c("", ".b")) |>
+  mutate(supervisory_organization_level_3 = coalesce(supervisory_organization_level_3, supervisory_organization_level_3.b)) |>
+  
+  mutate(low_span = if_else(is_manager == "Yes" & direct_reports <= 3, "low", "ok")) |> 
+  count(report_effective_date, supervisory_organization_level_3, low_span, is_manager) |> 
+  drop_na(is_manager) |> 
+  select(-is_manager) |> 
+  pivot_wider(id_cols = c(report_effective_date, supervisory_organization_level_3), names_from = low_span, values_from = n) |> 
+  drop_na(supervisory_organization_level_3) |>
+  mutate(across(low:ok, ~replace_na(.x, 0))) |> 
+  mutate(perc = percent(low/(low+ok) ,digits = 0)) |> 
+  
+  # Remove old teams
+  right_join(data_focus |>
+               distinct(report_effective_date, supervisory_organization_level_3) |>
+               expand(report_effective_date, supervisory_organization_level_3)) |>
+  ungroup() |>
+  mutate(trim = if_else(report_effective_date == "May 2024" & is.na(perc), supervisory_organization_level_3, NA)) |>
+  filter(!supervisory_organization_level_3 %in% trim) |>
+  drop_na(supervisory_organization_level_3, perc) |> 
+  
+  left_join(data_full |> 
+              mutate(low_span = if_else(is_manager == "Yes" & direct_reports <= 3, "low", "ok")) |> 
+              count(report_effective_date, low_span, is_manager) |> 
+              drop_na(is_manager) |> 
+              select(-is_manager) |> 
+              pivot_wider(id_cols = c(report_effective_date), names_from = low_span, values_from = n) |> 
+              mutate(across(low:ok, ~replace_na(.x, 0))) |> 
+              mutate(ll_perc = percent(low/(low+ok) ,digits = 0)), by = c("report_effective_date")
+    
+  ) |> 
+  
+  mutate(above_ave = if_else(perc > ll_perc, "above", "ok")) |> 
+  
+  ggplot() +
+  geom_line(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_3), color = offblack, size = 1) +
+  geom_line(aes(x = report_effective_date, y = ll_perc, group = supervisory_organization_level_3), color = neutral_3, size = 0.5, linetype = "dotted") +
+  
+  geom_label(aes(x = report_effective_date, y = ll_perc, label = ll_perc), color = neutral_3, fill = offwhite, family = lulu_font, label.size = 0) +
+  geom_label(aes(x = report_effective_date, y = perc, label = perc, fill = above_ave, color = above_ave), family = lulu_font, fontface = "bold") +
+  
+  facet_wrap(~ supervisory_organization_level_3) +
+  theme_clean_lulu() +
+  # standard_text_y(bold = FALSE) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(title = glue("Low spans of control: {focus}"),
+       subtitle = "Percentage of managers with 3 or fewer direct reports over time vs lululemon average (dotted line)",
+       x = "Compensation grade levels") +
+  scale_fill_manual(values = c("above" = hotheat,
+                               "ok" = offwhite)) +
+  scale_color_manual(values = c("above" = offwhite,
+                                "ok" = offblack))
 
 
 ## Data packs  ---- 

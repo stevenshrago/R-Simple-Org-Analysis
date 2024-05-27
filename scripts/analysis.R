@@ -69,7 +69,7 @@ c(
   )
 
 
-focus <- "Americas and Global Guest Innovation (Celeste Burgoyne)"
+focus <- "Supply Chain (Ted Dagnese)"
 
 data_focus <- data_full |> 
   filter(supervisory_organization_level_2 == focus)

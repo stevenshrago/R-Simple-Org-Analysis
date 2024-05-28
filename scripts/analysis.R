@@ -69,7 +69,7 @@ c(
   )
 
 
-focus <- "Supply Chain (Ted Dagnese)"
+focus <- "Legal (Shannon Higginson)"
 
 data_focus <- data_full |> 
   filter(supervisory_organization_level_2 == focus)
@@ -447,3 +447,15 @@ for (i in slt_areas) {
   
   
 }
+
+
+data_full |> 
+  filter(report_effective_date == "May 2024",
+         # str_detect(job_title, "(C|c)hange"),
+         # job_family == "Project Management",
+         # str_detect(job_title, "Program", negate = TRUE),
+         str_detect(job_title, "(S|s)trategic")
+         ) |>
+  select(supervisory_organization_level_3, position_id_worker, worker_name, job_title, job_family) |> 
+  arrange(desc(supervisory_organization_level_3), desc(job_title)) |> 
+  print(n=40)

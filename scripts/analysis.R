@@ -5,27 +5,27 @@ source("scripts/functions/helpers.r")
 
 ## Load data  ---- 
 
-data_orig <- readxl::read_xlsx("data_in/3ydata.xlsx", sheet = 2, .name_repair = make_clean_names)
+data_orig <- readxl::read_xlsx("data_in/3ydata.xlsx", sheet = 2, .name_repair = make_clean_names) # read in the orgiinal excel file and standardize the variable names (snake case)
 
 ## Clean and prepare  ---- 
 
-grade_levels <- c("B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "M1", "M2", "M3", "M4", "M5" ,"E1", "E2", "E3", "E4")
+grade_levels <- c("B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "M1", "M2", "M3", "M4", "M5" ,"E1", "E2", "E3", "E4") # set grade levels for each com grade
 
-grade_levels_overlap <- c("B1", "B2", "B3-C1", "B4-C2", "C3-M1", "C4-M2", "C5-M3", "C6-M4", "C7-M5", "E1", "E2", "E3", "E4")
+grade_levels_overlap <- c("B1", "B2", "B3-C1", "B4-C2", "C3-M1", "C4-M2", "C5-M3", "C6-M4", "C7-M5", "E1", "E2", "E3", "E4") # set grade levels for overlapping grades
 
 data_ready <- data_orig |>
   mutate(supervisory_organization_level_2 = if_else(supervisory_organization_level_2 == "Supply Chain, Dist, Sourcing (Ted Dagnese)", 
                                                     "Supply Chain (Ted Dagnese)",
-                                                    supervisory_organization_level_2),
-         compensation_grade = str_remove_all(compensation_grade, "L|N|P|S|T|I")) |> 
-  filter(currently_active == "Yes",
-         leave_on_leave == "No") |> 
-  mutate(compensation_grade = factor(compensation_grade, levels = grade_levels),
-         comp_grade_simple = factor(case_when(str_detect(compensation_grade, "B") ~ "B",
+                                                    supervisory_organization_level_2), #fix for Ted's org that changed name
+         compensation_grade = str_remove_all(compensation_grade, "L|N|P|S|T|I")) |> # remove technical grades from each comp level
+  filter(currently_active == "Yes", # filter for active roles
+         leave_on_leave == "No") |> # filter out on leave
+  mutate(compensation_grade = factor(compensation_grade, levels = grade_levels), # set compensation_grade as a factor
+         comp_grade_simple = factor(case_when(str_detect(compensation_grade, "B") ~ "B", # create simplified comp grade levels variable
                                        str_detect(compensation_grade, "C") ~ "C",
                                        str_detect(compensation_grade, "M") ~ "M",
                                        str_detect(compensation_grade, "E") ~ "E"), levels = c("B", "C", "M", "E")),
-         comp_grade_overlap = factor(case_when(str_detect(compensation_grade, "B3|C1") ~ "B3-C1",
+         comp_grade_overlap = factor(case_when(str_detect(compensation_grade, "B3|C1") ~ "B3-C1", # create overlapping comp grade levels variable
                                         str_detect(compensation_grade, "B4|C2") ~ "B4-C2",
                                         str_detect(compensation_grade, "C3|M1") ~ "C3-M1",
                                         str_detect(compensation_grade, "C4|M2") ~ "C4-M2",
@@ -33,27 +33,25 @@ data_ready <- data_orig |>
                                         str_detect(compensation_grade, "C6|M4") ~ "C6-M4",
                                         str_detect(compensation_grade, "C7|M5") ~ "C7-M5",
                                         .default = compensation_grade), levels = grade_levels_overlap),
-         report_effective_date = paste0(month(report_effective_date, label = TRUE), " ", year(report_effective_date)))
+         report_effective_date = paste0(month(report_effective_date, label = TRUE), " ", year(report_effective_date))) # create a human readable report data variable
 
 
-managers <- data_ready |> 
+managers <- data_ready |> # create a subset of the main data with key manager variables
   select(report_effective_date, position_id_worker, position_id_manager, job_title, compensation_grade, comp_grade_overlap, worker_name)
 
 direct_reports <- data_ready |> 
-  count(report_effective_date, position_id_manager) |> 
+  count(report_effective_date, position_id_manager) |> # count the number of times a manager's job code appears = number of direct reports
   rename(direct_reports = n,
          position_id_worker = position_id_manager)
 
 data_full <- data_ready |> 
-  left_join(managers, by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("", "_mgr")) |> 
-  left_join(direct_reports, by = c("report_effective_date", "position_id_worker")) |> 
+  left_join(managers, by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("", "_mgr")) |> # join manager data to main data set
+  left_join(direct_reports, by = c("report_effective_date", "position_id_worker")) |> # join direct reports data to manager data
   # fixes
-  mutate(supervisory_organization_level_3 = case_when(supervisory_organization_level_3 == "Member Engagement (TJ Whitmell)" ~ "Member Engagement (Jiamei Bai)",
+  mutate(supervisory_organization_level_3 = case_when(supervisory_organization_level_3 == "Member Engagement (TJ Whitmell)" ~ "Member Engagement (Jiamei Bai)", # fixes for Workday strangeness
                                                        supervisory_organization_level_3 == "Global Guest Innovation (Maureen Erickson)" ~ "AGGI Strategic Enablement & New Business (Maureen Erickson)",
                                                        supervisory_organization_level_3 == "North America Integrated Marketing (Rebecca Marstaller)" ~ "NA Brand Marketing (Rebecca Marstaller)",
                                                        .default = supervisory_organization_level_3))
-
-data_focus |>tabyl(supervisory_organization_level_3)
   
 
 c(
@@ -69,24 +67,24 @@ c(
   )
 
 
-focus <- "Legal (Shannon Higginson)"
+focus <- "Legal (Shannon Higginson)" # filter for SLT focus area
 
-data_focus <- data_full |> 
+data_focus <- data_full |> # set filter for data set to SLT area
   filter(supervisory_organization_level_2 == focus)
 
 ## 1 Manager Percentages  ---- 
 
 data_focus |>
-  group_by(report_effective_date, supervisory_organization_level_3, is_manager) |>
+  group_by(report_effective_date, supervisory_organization_level_3, is_manager) |> #group and count number of non-/managers by sup org and date
   summarize(n = n()) |>
-  mutate(is_manager = replace_na(is_manager, "No")) |> 
-  pivot_wider(id_cols = c(report_effective_date, supervisory_organization_level_3), names_from = is_manager, values_from = n) |>
-  mutate(Yes = Yes+1) |>
-  summarize(perc = percent(Yes/(Yes+No), digits = 0))|> 
+  mutate(is_manager = replace_na(is_manager, "No")) |> # fill in blank/NA 
+  pivot_wider(id_cols = c(report_effective_date, supervisory_organization_level_3), names_from = is_manager, values_from = n) |> # reshape
+  mutate(Yes = Yes+1) |> # adjustment to count the manager of the sup org in the numbers
+  summarize(perc = percent(Yes/(Yes+No), digits = 0))|> # percetages of non-/managers
   drop_na(supervisory_organization_level_3) |>
-  filter(perc > 0) |>
+  filter(perc > 0) |> # filter non-zero percentages
   
-  left_join(data_full |> 
+  left_join(data_full |> # calculate lululemon overall percentages
               group_by(report_effective_date, is_manager) |> 
               summarise(n = n()) |> 
               mutate(is_manager = replace_na(is_manager, "No")) |> 
@@ -94,13 +92,13 @@ data_focus |>
               summarize(ll_perc = percent(Yes/(Yes+No), digits = 0)),
             by = c("report_effective_date")) |> 
   
-  right_join(data_focus |> 
+  right_join(data_focus |> # next few lines remove records for historical sup orgs that no longer exist in 2024
                distinct(report_effective_date, supervisory_organization_level_3) |> 
                expand(report_effective_date, supervisory_organization_level_3)) |>
   ungroup() |> 
   mutate(trim = if_else(report_effective_date == "May 2024" & is.na(perc), supervisory_organization_level_3, NA)) |>
   filter(!supervisory_organization_level_3 %in% trim) |> 
-  mutate(high_ok_low = case_when(perc >= 0.25 ~ "high",
+  mutate(high_ok_low = case_when(perc >= 0.25 ~ "high", # categorization of percentage levels against best practice
                                  perc <= 0.15 ~ "low",
                                  .default = "ok")) |> 
   
@@ -134,18 +132,18 @@ data_focus |>
 
 
 data_focus |>
-  left_join(data_focus |>
+  left_join(data_focus |> # this code ensures that the manager of the sup org unit is classified as part of the org unit
               distinct(report_effective_date, supervisory_organization_level_3) |>
               mutate(worker_name = str_extract(supervisory_organization_level_3, "(?<=\\()[^()]+(?=\\))")) |>
               drop_na(supervisory_organization_level_3),
             by = c("worker_name", "report_effective_date"), suffix = c("", ".b")) |>
   mutate(supervisory_organization_level_3 = coalesce(supervisory_organization_level_3, supervisory_organization_level_3.b)) |>
   
-  group_by(report_effective_date, supervisory_organization_level_3) |>
+  group_by(report_effective_date, supervisory_organization_level_3) |> # calculate average span of control
   summarise(average_span = round(mean(direct_reports, na.rm = TRUE),1.1)) |>
   drop_na(supervisory_organization_level_3) |> 
   
-  right_join(data_focus |>
+  right_join(data_focus |>  # next few lines remove records for historical sup orgs that no longer exist in 2024
                distinct(report_effective_date, supervisory_organization_level_3) |>
                expand(report_effective_date, supervisory_organization_level_3)) |>
   ungroup() |>
@@ -155,7 +153,7 @@ data_focus |>
   drop_na(supervisory_organization_level_3, average_span) |> 
   
   
-  mutate(low_ok = if_else(average_span >= 5 & average_span <= 8, "ok", "low")) |> 
+  mutate(low_ok = if_else(average_span >= 5 & average_span <= 8, "ok", "low")) |> # categorize span ranges for plots
   ggplot(aes(x = report_effective_date, y = average_span, group = supervisory_organization_level_3)) +
   geom_rect(aes(xmin = 0, xmax = 4, ymin = 5, ymax = 8), fill = neutral_5) +
   geom_line() +
@@ -180,13 +178,13 @@ data_focus |>
 
 
 data_focus |> 
-  filter(comp_grade_overlap == comp_grade_overlap_mgr) |> 
-  count(report_effective_date, supervisory_organization_level_3) |> 
+  filter(comp_grade_overlap == comp_grade_overlap_mgr) |> # find compressed roles
+  count(report_effective_date, supervisory_organization_level_3) |>  # count by sup org and date
   left_join(data_focus |> 
               count(report_effective_date, supervisory_organization_level_3),
             by = c("report_effective_date", "supervisory_organization_level_3")) |> 
   group_by(report_effective_date, supervisory_organization_level_3) |> 
-  reframe(perc = percent(n.x/n.y, digits = 1)) |>
+  reframe(perc = percent(n.x/n.y, digits = 1)) |> # summarise compression percentage, but in a weird way
   
   # Remove old teams
   right_join(data_focus |>
@@ -197,7 +195,7 @@ data_focus |>
   filter(!supervisory_organization_level_3 %in% trim) |>
   drop_na(supervisory_organization_level_3, perc) |> 
   
-  left_join(data_full |> 
+  left_join(data_full |> # add lululemon average
               mutate(compression = if_else(comp_grade_overlap == comp_grade_overlap_mgr, "compressed", "ok")) |>
               count(report_effective_date, compression) |> 
               drop_na(compression) |> 
@@ -226,14 +224,14 @@ data_focus |>
 ## 4 Executive development  ---- 
 
 data_focus |> 
-  mutate(exec = if_else(str_detect(compensation_grade, "E"), "exec", "non")) |> 
-  group_by(report_effective_date, supervisory_organization_level_2, exec) |> 
+  mutate(exec = if_else(str_detect(compensation_grade, "E"), "exec", "non")) |> # classifiy exec roles
+  group_by(report_effective_date, supervisory_organization_level_2, exec) |> # group and count exec roles
   summarise(n = n()) |>
   drop_na(exec) |> 
   pivot_wider(id_cols = c("report_effective_date", "supervisory_organization_level_2"), names_from = exec, values_from = n) |> 
-  summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |>
+  summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |> # percentages of exec roles
   
-  left_join(data_full |> 
+  left_join(data_full |> # lululemon averages
               mutate(exec = if_else(str_detect(compensation_grade, "E"), "exec", "non")) |> 
               group_by(report_effective_date, exec) |> 
               summarise(n = n()) |> 
@@ -242,7 +240,7 @@ data_focus |>
               summarise(ll_exec_perc = percent(exec/(exec+non), digits = 1)), by = c("report_effective_date")
             ) |> 
   
-  mutate(vsbm = if_else(exec_perc > 0.02, "high", "ok")) |> 
+  mutate(vsbm = if_else(exec_perc > 0.02, "high", "ok")) |>  # classification of ranges for plot
   ggplot() +
   geom_rect(aes(xmin = 0.5, xmax = 3.5, ymin = 0, ymax = .02), fill = neutral_5) +
   geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dashed") +
@@ -267,18 +265,18 @@ data_focus |>
 
 
 data_focus |>
-  mutate(pjm = if_else(str_detect(job_title, "(P|p)ro(g|j)"), "Yes", "No")) |> 
-  count(report_effective_date, supervisory_organization_level_2, pjm) |> 
+  mutate(pjm = if_else(str_detect(job_title, "(P|p)ro(g|j)"), "Yes", "No")) |> # classify project managers by job title
+  count(report_effective_date, supervisory_organization_level_2, pjm) |> # group and count project managers
   pivot_wider(id_cols = 1:2, names_from = pjm, values_from = n) |> 
   group_by(report_effective_date, supervisory_organization_level_2) |> 
-  summarize(perc = percent(Yes/(Yes+No), digits = 1)) |>
-  left_join(data_full |> 
+  summarize(perc = percent(Yes/(Yes+No), digits = 1)) |> # percentages
+  left_join(data_full |>  # lululemon averages
               mutate(pjm = if_else(str_detect(job_title, "(P|p)ro(g|j)"), "Yes", "No")) |> 
               count(report_effective_date, pjm) |> 
               pivot_wider(id_cols = 1, names_from = pjm, values_from = n) |> 
               group_by(report_effective_date) |> 
               summarize(ll_perc = percent(Yes/(Yes+No), digits = 1)), by = c("report_effective_date")) |> 
-  mutate(vsbm = if_else(perc > 0.01, "high", "ok")) |>
+  mutate(vsbm = if_else(perc > 0.01, "high", "ok")) |> # classsify ranges for plot
   ggplot() +
   geom_rect(aes(xmin = 0.5, xmax = 3.5, ymin = 0, ymax = .01), fill = neutral_5) +
   geom_hline(aes(yintercept = 0.01), color = neutral_4, linetype = "dashed") +
@@ -303,10 +301,10 @@ data_focus |>
  ## 6 Grade development  ---- 
 
 data_focus |> 
-  count(report_effective_date, supervisory_organization_level_2, comp_grade_overlap) |>
+  count(report_effective_date, supervisory_organization_level_2, comp_grade_overlap) |> # count records by contriubution level, date and sup org
   drop_na(comp_grade_overlap) |> 
   group_by(report_effective_date) |> 
-  mutate(perc = percent(n/sum(n, na.rm = TRUE), digits = 1)) |>
+  mutate(perc = percent(n/sum(n, na.rm = TRUE), digits = 1)) |> # percentages of each comp level by date
   
   # Add lululemon average
   left_join(data_full |> 
@@ -340,7 +338,7 @@ data_focus |>
 
 data_focus |>
   # Add L3 leaders to the calculation
-  left_join(data_focus |>
+  left_join(data_focus |> # this code ensures that the manager of the sup org unit is classified as part of the org unit
               distinct(report_effective_date, supervisory_organization_level_3) |>
               mutate(worker_name = str_extract(supervisory_organization_level_3, "(?<=\\()[^()]+(?=\\))")) |>
               drop_na(supervisory_organization_level_3),
@@ -447,6 +445,39 @@ for (i in slt_areas) {
   
   
 }
+
+
+# Analysts
+
+for (i in slt_areas) {
+  
+
+  data_full |> 
+    filter(report_effective_date == "May 2024",
+           supervisory_organization_level_2 == i,
+           str_detect(job_title, "(A|a)naly")) |>
+    select(supervisory_organization_level_3, position_id_worker, worker_name, job_title) |> 
+    arrange(desc(supervisory_organization_level_3), desc(job_title)) |> 
+    write_excel_csv(glue("data_out/analysts_{i}.csv"))
+
+}
+
+
+# Product Managers
+
+for (i in slt_areas) {
+  
+
+  data_full |> 
+    filter(report_effective_date == "May 2024",
+           supervisory_organization_level_2 == i,
+           str_detect(job_title, "(P|r)oduct Manager")) |>
+    select(supervisory_organization_level_3, position_id_worker, worker_name, job_title) |> 
+    arrange(desc(supervisory_organization_level_3), desc(job_title)) |> 
+    write_excel_csv(glue("data_out/product_managers_{i}.csv"))
+  
+}
+
 
 
 data_full |> 

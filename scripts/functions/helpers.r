@@ -110,3 +110,16 @@ bargraph_text_size = 12
 bargraph_text_size_s = 8
 
 
+
+grade_levels <- c("B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "M1", "M2", "M3", "M4", "M5" ,"E1", "E2", "E3", "E4") # set grade levels for each com grade
+
+grade_levels_overlap <- c("B1", "B2", "B3-C1", "B4-C2", "C3-M1", "C4-M2", "C5-M3", "C6-M4", "C7-M5", "E1", "E2", "E3", "E4") # set grade levels for overlapping grades
+
+grade_scoring <- tibble (compensation_grade = c("B1", "B2", "B3", "B4", 
+                                          "C1", "C2", "C3", "C4", "C5", "C6", "C7", 
+                                          "M1", "M2", "M3", "M4", "M5" 
+                                          ,"E1", "E2", "E3", "E4"),
+                         score = c(1,2,3,4,
+                                   3,4,5,6,7,8,9,
+                                   5,6,7,8,9,
+                                   10,11,12,13))

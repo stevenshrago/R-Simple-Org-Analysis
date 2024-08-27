@@ -1,11 +1,118 @@
 library(pacman)
-p_load(tidyverse, janitor, glue, datapasta, formattable, extrafont, WriteXLS, explore, readxl, lubridate)
+p_load(tidyverse, janitor, glue, datapasta, formattable, extrafont, WriteXLS, explore, readxl, lubridate, tidygraph, ggraph)
 
 source("scripts/functions/helpers.r")
 
 ## Load data  ---- 
 
-data_orig <- readxl::read_xlsx("data_in/3ydata.xlsx", sheet = 2, .name_repair = make_clean_names) # read in the orgiinal excel file and standardize the variable names (snake case)
+# data_orig <- readxl::read_xlsx("data_in/3ydata.xlsx", sheet = 2, .name_repair = make_clean_names) # read in the orgiinal excel file and standardize the variable names (snake case)
+
+data_orig <- readxl::read_xlsx("data_in/Q4 2022 Quarterly Data.xlsx", sheet = 2, .name_repair = make_clean_names) 
+
+
+
+extract_date <-  "2024-05-03"
+
+# need grade lookup table for distance!!
+
+data_clean <- data_orig |> 
+  mutate(report_effective_date = lubridate::as_date(report_effective_date),
+         position_id_manager = if_else(position_id_worker == "83-093759", NA_character_, position_id_manager),
+         compensation_grade = str_remove_all(compensation_grade, "L|N|P|S|T|I"),
+         compensation_grade = factor(compensation_grade, levels = grade_levels)) |>
+  left_join(grade_scoring, by = "compensation_grade") |> 
+  filter(report_effective_date == extract_date)
+
+managers_vector <- data_clean |> 
+  distinct(position_id_manager) |> 
+  pull()
+
+remove_fields <- c("vacancy", "leave_on_leave", "position_id_worker", "currently_active", "is_manager", "report_effective_date")
+
+managers <- data_clean |> 
+  filter(position_id_worker %in% managers_vector) |> 
+  select(-all_of(remove_fields)) |> glimpse()
+
+
+data_managers <- data_clean |> 
+  left_join(managers, by = c("position_id_manager" = "position_id_workday"), suffix = c("_worker", "_manager")) |> view()
+
+
+
+                 
+data_clean |> tabyl(compensation_grade)
+
+
+
+
+graph_data <- data_clean |>
+  select(from = position_id_manager, to = position_id_workday, job_title, -report_effective_date)
+  
+nodes <- graph_data  |> 
+    select(from, to) |> 
+    unlist() |> 
+    unique() |> 
+    as_tibble() |> 
+    rename(name = value) |> 
+    left_join(data_clean, by = c("name" = "position_id_workday"))
+  
+edges <- graph_data %>%
+    mutate(
+      from = match(from, nodes$name),
+      to = match(to, nodes$name)
+    )
+  
+graph <- tbl_graph(nodes = nodes, edges = edges, directed = TRUE) |> 
+  activate(nodes) |> 
+  mutate(direct_positions = local_size(order = 1, mindist = 1, mode = "out"),
+         total_positions = local_size(order = 10, mindist = 1, mode = "out"),
+         depth = bfs_dist(which(.N()$name == "83-093759")))
+
+
+  
+
+
+
+
+
+# Apply data to child nodes
+
+
+# find_manager_from_name <- data_graph %>%
+#   activate(nodes) %>% 
+#   select(name, om_position_title, employee_name, direct_chief_position) %>%
+#   filter(str_detect(employee_name, "PEYER")) %>%
+#   print()
+# 
+# find_manager_from_position <- data_graph %>%
+#   select(name, om_position_title, employee_name, direct_chief_position) %>%
+#   filter(str_detect(om_position_title, "General Counsel")) %>%
+#   print()
+# 
+# find_manager_from_id <- data_graph %>% 
+#   select(name, om_position_title, employee_name, direct_chief_position) %>%
+#   filter(str_detect(name, "10335681")) %>%
+#   print()
+# 
+# leadership_team <- data_graph %>%
+#   activate(nodes) %>% 
+#   filter(direct_chief_position == "10244451") %>%
+#   select(name, employee_name, om_position_title, fte_position, fte_person, tot_fte_pos) %>% 
+#   as_tibble() %>% 
+#   print(n=26)
+
+
+graph %>% 
+  convert(to_local_neighborhood,
+          # node = which(.N()$name == "83-093759"),
+          node = which(.N()$name == "83-080777"),
+          order = 1,
+          mode = "out") %>% 
+  ggraph(layout = "partition", circular = T) +
+  geom_edge_link() +
+  coord_flip() +
+  geom_node_text(aes(label = paste0(name,"\n",job_title,"\n", worker_name))) +
+  theme_graph()
 
 ## Clean and prepare  ---- 
 

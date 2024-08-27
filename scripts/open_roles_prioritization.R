@@ -29,13 +29,13 @@ data_scored <- data_orig |>
                                                                           "Maestrini, Andre",
                                                                           "Neuburger, Nikki") ~ 3,
                                 str_detect(jobs_name, "Merchandise") ~4,
-                                .default = 1),
+                                .default = 1), 
          score_intake_meeting = if_else(is.na(jobs_intake_meeting_date), 0, 2),
          score_months_in_system = case_when(months_in_system >=12 ~ -1,
                                             months_in_system <12 & months_in_system >= 6 ~ 1,
                                             months_in_system <6 & months_in_system >= 3 ~ 3,
-                                            .default = 6),
-         score_location = if_else(is.na(location_simple), 3, 0)
+                                            .default = 6), # Score 6 if role has been listed for less than 3 months
+         score_location = if_else(is.na(location_simple), 3, 0) #Score 3 for non-NA roles
          ) |>
   rowwise() |> 
   mutate(total = sum(score_grade, score_reason, score_posted, score_core, score_intake_meeting, score_months_in_system, score_location))
@@ -48,10 +48,15 @@ data_scored |>
                                                    "Maestrini, Andre",
                                                    "Ng, San Yan"),
          !jobs_recruitment_status == "Offer in Alignment",
-         jobs_senior_leadership_team_member == "Frank, Meghan") |> 
+         # jobs_senior_leadership_team_member == "Frank, Meghan"
+         ) |> 
   select(jobs_senior_leadership_team_member, jobs_name, comp_grade, total) |> 
   arrange(desc(total)) |> 
+  
   head(50) |> 
+  count(jobs_senior_leadership_team_member)
   view()
 
 data_orig |> tabyl(jobs_location)
+
+data_orig |>  glimpse()

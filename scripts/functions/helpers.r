@@ -16,7 +16,7 @@ theme_clean_lulu <- function(th){
               plot.caption = element_text(family = lulu_font, size = 10),
               title = element_text(family = lulu_font, size = 18, face = "bold", color = offblack),
               plot.subtitle = element_text(family = lulu_font, size = 12, color = offblack),
-              strip.background = element_rect(fill = neutral_4),
+              strip.background = element_rect(fill = neutral_1),
               strip.text = element_text(family = lulu_font, size = 8, face = "bold", color = offblack))
   
   return (th)

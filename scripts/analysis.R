@@ -7,13 +7,9 @@ source("scripts/functions/helpers.r")
 
 # data_orig <- readxl::read_xlsx("data_in/3ydata.xlsx", sheet = 2, .name_repair = make_clean_names) # read in the orgiinal excel file and standardize the variable names (snake case)
 
-data_orig <- readxl::read_xlsx("data_in/Q4 2022 Quarterly Data.xlsx", sheet = 2, .name_repair = make_clean_names) 
-
-
+data_orig <- readxl::read_xlsx("data_in/quarterly_data_original.xlsx", sheet = 2, .name_repair = make_clean_names) 
 
 extract_date <-  "2024-05-03"
-
-# need grade lookup table for distance!!
 
 data_clean <- data_orig |> 
   mutate(report_effective_date = lubridate::as_date(report_effective_date),
@@ -21,22 +17,39 @@ data_clean <- data_orig |>
          compensation_grade = str_remove_all(compensation_grade, "L|N|P|S|T|I"),
          compensation_grade = factor(compensation_grade, levels = grade_levels)) |>
   left_join(grade_scoring, by = "compensation_grade") |> 
+  left_join(data_clean |> 
+              count(report_effective_date, position_id_manager), by = c("report_effective_date", "position_id_worker" = "position_id_manager")) |> 
+  rename(direct_reports = n) 
+  
+data_clean_managers <- data_clean |> 
+  left_join(data_clean, by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("_wkr", "_mgr")) |>
   filter(report_effective_date == extract_date)
 
-managers_vector <- data_clean |> 
-  distinct(position_id_manager) |> 
-  pull()
 
-remove_fields <- c("vacancy", "leave_on_leave", "position_id_worker", "currently_active", "is_manager", "report_effective_date")
-
-managers <- data_clean |> 
-  filter(position_id_worker %in% managers_vector) |> 
-  select(-all_of(remove_fields)) |> glimpse()
+direct_reports <- data_clean |> 
+  count(report_effective_date, position_id_manager) |> 
+  
 
 
-data_managers <- data_clean |> 
-  left_join(managers, by = c("position_id_manager" = "position_id_workday"), suffix = c("_worker", "_manager")) |> view()
 
+
+  
+
+  left_join(data_clean |> 
+              filter(position_id_worker %in% pull(data_clean |> 
+                                                    distinct(report_effective_date, position_id_manager))) |> 
+              select(-all_of(remove_fields)), 
+            by = c("position_id_manager" = "position_id_workday", "report_effective_date"), suffix = c("_wkr", "_mgr")) |> 
+  mutate(compression = if_else(score_wkr == score_mgr, "Yes", "No"))
+
+data_clean |> tabyl(report_effective_date, score_wkr)
+
+data_clean |> filter(is.na(score_mgr)) |> view()
+
+data_clean |> glimpse()
+
+
+# populate missing supervisory levels !!
 
 
                  

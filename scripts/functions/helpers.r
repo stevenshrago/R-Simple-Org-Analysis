@@ -85,22 +85,24 @@ standard_line_lims <- function(th, lo = 0.3, hi = 1) {
 lulu_font <- "Saans"
 
 # lulu colours
-offwhite <-  "#fffff5"
-offblack <-  "#1e140e"
+offwhite <-  "#fdfdf8"
+offblack <-  "#140f0f"
 hotheat <- "#ff4546"
+neutral_1 <-  "#efeeec"
+neutral_2 <-  "#c8c2b8"
+neutral_3 <-  "#7f746c"
+neutral_4 <-  "#2b1f1e"
 
-blue = "#c7d7fb"
-yellow = "#f2ff91"
-lightergreen = "#d5e0d4"
-lightgreen = "#c0e7c5"
-green = "#6bb2a0"
+dark_green <-  "#142a0e"
+blue <-  "#c0ddff"
+pale_green <-  "#f3fed7"
+yellow <-  "#f4ff8e"
+dark_brown <-  "#524a43"
 
-neutral_1 = "#130a0a"
-neutral_2 = "#493c3b"
-neutral_3 = "#8c8077"
-neutral_4 = "#ddd8d1"
-neutral_5 = "#efeeec"
-neutral_6 = "#fffff2"
+
+
+
+
 
 # geom_label and geom_text sizes
 
@@ -119,7 +121,18 @@ grade_scoring <- tibble (compensation_grade = c("B1", "B2", "B3", "B4",
                                           "C1", "C2", "C3", "C4", "C5", "C6", "C7", 
                                           "M1", "M2", "M3", "M4", "M5" 
                                           ,"E1", "E2", "E3", "E4"),
-                         score = c(1,2,3,4,
+                         grade_score = c(1,2,3,4,
                                    3,4,5,6,7,8,9,
                                    5,6,7,8,9,
                                    10,11,12,13))
+
+
+slt_lookup <- tibble(worker_name = c("Celeste Burgoyne", "Susan Gelinas", "Shannon Higginson", "Ted Dagnese", "Sun Choe", "Meghan Frank", "Julie Averill", "Nikki Neuburger", "Andre Maestrini"),
+                     missing_data = c("Americas and Global Guest Innovation (Celeste Burgoyne)", "People & Culture (Susan Gelinas)", "Legal (Shannon Higginson)", "Supply Chain (Ted Dagnese)", "Design and Merchandising (Sun Choe)", "CFO (Meghan Frank)", "Technology (Julie Averill)", "Brand & Creative Content (Nikki Neuburger)", "International (Andre Maestrini)")
+)
+
+remove_fields <- c("vacancy", "leave_on_leave", "position_id_worker", "currently_active", "is_manager")
+
+
+root <- "83-093759"
+

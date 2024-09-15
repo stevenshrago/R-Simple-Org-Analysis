@@ -530,6 +530,27 @@ data_focus |>
 
 ## 9 Succession gaps ----
 
+data_focus |>
+  filter(compensation_grade_wkr %in% c("M4", "M5","E1", "E2", "E3", "E4")) |> 
+  group_by(report_effective_date, compensation_grade_wkr, alert_successors) |> 
+  summarise(total = n()) |> 
+  replace_na(list(alert_successors = "Potential successor",
+                  supervisory_organization_level_3 = "Exec leadership")) |> 
+  summarise(succession_risk =  percent(sum(total[alert_successors == "No successor"]) / sum(total),digits = 0)) |>
+  mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
+  ggplot(aes(x = report_effective_date, y = succession_risk, group = compensation_grade_wkr)) +
+  geom_line(colour = neutral_3) +
+  geom_label(aes(label = succession_risk), family = lulu_font, fill = yellow, fontface = "bold") +
+  facet_wrap(~ compensation_grade_wkr) +
+  theme_clean_lulu() +
+  standard_text_y(bold = FALSE) +
+  standard_text_x(bold = FALSE, size = 8) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(title = glue("Strutural succession risk by grade over time"),
+       subtitle = "Percentage of Director+ roles without a succession path one grade down from the manager",
+       x = "Date",
+       y = "Percentage of roles without a clear succession path") 
+
 
 data_focus |>
   filter(compensation_grade_wkr %in% c("M4", "M5","E1", "E2", "E3", "E4"),
@@ -561,6 +582,31 @@ data_focus |>
        x = "Grade level",
        y = "Percentage of roles without a clear succession path") 
   
+
+## Compression/friction
+
+
+data_focus |>
+  filter(compensation_grade_wkr %in% c("M4", "M5","E1", "E2", "E3", "E4")) |> 
+  group_by(report_effective_date, compensation_grade_wkr, alert_compression) |> 
+  summarise(total = n()) |> 
+  replace_na(list(alert_compression = "Ok",
+                  supervisory_organization_level_3 = "Exec leadership")) |> 
+  summarise(compression_risk =  percent(sum(total[alert_compression == "Team compression"]) / sum(total),digits = 0)) |>
+  mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
+  ggplot(aes(x = report_effective_date, y = compression_risk, group = compensation_grade_wkr)) +
+  geom_line(colour = neutral_3) +
+  geom_label(aes(label = compression_risk), family = lulu_font, fill = blue, fontface = "bold") +
+  facet_wrap(~ compensation_grade_wkr) +
+  theme_clean_lulu() +
+  standard_text_y(bold = FALSE) +
+  standard_text_x(bold = FALSE, size = 8) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(title = glue("Strutural compression risk by grade over time"),
+       subtitle = "Percentage of teams featuring same comtribution grade reporting and/or more than 30% of roles within one grade level of the manager",
+       x = "Date",
+       y = "Percentage of compressed teams") 
+
 
 
 

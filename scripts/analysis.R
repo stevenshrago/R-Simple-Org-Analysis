@@ -16,40 +16,44 @@ data_clean <- data_orig |>
          position_id_manager = if_else(position_id_worker == "83-093759", NA_character_, position_id_manager),
          compensation_grade = str_remove_all(compensation_grade, "L|N|P|S|T|I"),
          compensation_grade = factor(compensation_grade, levels = grade_levels)) |>
-  left_join(grade_scoring, by = "compensation_grade") |> 
+  left_join(grade_scoring, by = "compensation_grade")
+
+data_clean_drs <- data_clean |> 
   left_join(data_clean |> 
               count(report_effective_date, position_id_manager), by = c("report_effective_date", "position_id_worker" = "position_id_manager")) |> 
   rename(direct_reports = n) 
   
-data_clean_managers <- data_clean |> 
-  left_join(data_clean, by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("_wkr", "_mgr")) |>
-  filter(report_effective_date == extract_date)
-
-
-direct_reports <- data_clean |> 
-  count(report_effective_date, position_id_manager) |> 
-  
-
-
-
-
-  
-
+data_clean_managers <- data_clean_drs |>
   left_join(data_clean |> 
-              filter(position_id_worker %in% pull(data_clean |> 
-                                                    distinct(report_effective_date, position_id_manager))) |> 
-              select(-all_of(remove_fields)), 
-            by = c("position_id_manager" = "position_id_workday", "report_effective_date"), suffix = c("_wkr", "_mgr")) |> 
-  mutate(compression = if_else(score_wkr == score_mgr, "Yes", "No"))
-
-data_clean |> tabyl(report_effective_date, score_wkr)
-
-data_clean |> filter(is.na(score_mgr)) |> view()
-
-data_clean |> glimpse()
+              select(report_effective_date, position_id_worker, position_id_manager, job_title, worker_name, compensation_grade, supervisory_organization_level_2, supervisory_organization_level_3, grade_score), 
+            by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("_wkr", "_mgr")) |> 
+  mutate(compression = if_else(grade_score_wkr == grade_score_mgr, "Yes", NA))
 
 
-# populate missing supervisory levels !!
+data_clean_managers |> 
+  filter(report_effective_date == "2024-08-02",
+         compensation_grade_mgr %in% c("M4", "M5","E1", "E2", "E3", "E4")) |> 
+  select(position_id_worker, compensation_grade_wkr, grade_score_wkr, position_id_manager, compensation_grade_mgr, grade_score_mgr) |> 
+  mutate(gap_raw = grade_score_mgr - grade_score_wkr,
+         gap_comment = case_when(gap_raw == 0 ~ "Compressed",
+                                 gap_raw == 1 ~ "Successor",
+                                 gap_raw == 2 | gap_raw == 3 ~ "ok",
+                                 gap_raw >3 ~ "Gap")) |> 
+  arrange(position_id_manager) |>
+  count(position_id_manager, gap_comment) |>
+  group_by(position_id_manager) |> 
+  mutate(percentage = percent(n/sum(n), digits = 0)) |>
+  select(-n) |> 
+  pivot_wider(id_cols = position_id_manager, names_from = gap_comment, values_from = percentage) |>
+  replace_na(list(ok = percent(0, digits = 0),
+                  Gap = percent(0, digits = 0),
+                  Successor = percent(0, digits = 0),
+                  Compressed = percent(0, digits = 0))) |>
+  mutate(alert_successors = if_else(Successor == percent(0, digits = 0), "No successor", NA),
+         alert_compression  = if_else(Successor >= percent(0.33, digits = 0) | Compressed > percent(0, digits = 0), "Team compression", NA)) |> 
+  head(20)
+
+
 
 
                  

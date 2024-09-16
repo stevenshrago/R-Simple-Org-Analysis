@@ -1,7 +1,9 @@
 library(pacman)
-p_load(tidyverse, janitor, glue, datapasta, formattable, extrafont, WriteXLS, explore, readxl, lubridate, tidygraph, ggraph)
+p_load(tidyverse, janitor, glue, datapasta, formattable, showtext, WriteXLS, explore, readxl, lubridate, tidygraph, ggraph)
 
 source("scripts/functions/helpers.r")
+
+
 
 ## Load data  ---- 
 
@@ -107,7 +109,7 @@ data_focus <- data_clean_alerts |>
   filter(supervisory_organization_level_2 == "Supply Chain (Ted Dagnese)")
 
 
-data_focus |> view()
+
 
 
 
@@ -219,8 +221,8 @@ data_focus |>
   geom_line(aes(x = report_effective_date, y = ll_perc, group = supervisory_organization_level_3), color = offblack, size = 0.5, linetype = "dashed") +
   geom_line(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_3), color = neutral_3, size = 1) +
   facet_wrap(~ supervisory_organization_level_3) +
-  geom_hline(yintercept = 0.15, color = neutral_3, linetype = "dashed") +
-  geom_hline(yintercept = 0.25, color = neutral_3, linetype = "dashed") +
+  geom_hline(yintercept = 0.15, color = neutral_3, linetype = "dotted") +
+  geom_hline(yintercept = 0.25, color = neutral_3, linetype = "dotted") +
   geom_label(aes(x = report_effective_date, y = ll_perc, label = ll_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
   geom_label(aes(x = report_effective_date, y = perc, label = perc, fill = high_ok_low, color = high_ok_low), family = lulu_font, fontface = "bold") +
   theme_clean_lulu() +
@@ -230,7 +232,8 @@ data_focus |>
   labs(title = glue("Percentage of line managers "),
        subtitle = "Line managers as a percentage of roles over time vs lululemon average and external benchmark (15-25%)",
        x = "Date",
-       y = "Manager perentage") +
+       y = "Manager perentage",
+       caption = "Excludes leaves and non-SSC workforce.") +
   scale_fill_manual(values = c("high" = hotheat,
                                "ok" = pale_green,
                                "low" = blue)) +
@@ -357,13 +360,16 @@ data_focus |>
          report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>  # classification of ranges for plot
   ggplot() +
   geom_rect(aes(xmin = 0.5, xmax = length(unique(data_focus$report_effective_date))+0.5, ymin = 0, ymax = .02), fill = neutral_1) +
-  geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dashed") +
+  geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dotted") +
   geom_line(aes(x = report_effective_date, y = exec_perc, group = supervisory_organization_level_2), color = offblack, size = 1) +
   geom_line(aes(x = report_effective_date, y = ll_exec_perc, group = supervisory_organization_level_2), color = neutral_3, size = 0.5, linetype = "dashed") +
   geom_label(aes(x = report_effective_date, y = ll_exec_perc, label = ll_exec_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
   geom_label(aes(x = report_effective_date, y = exec_perc, label = exec_perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
   labs(title = glue("Executive roles percentage"),
-       subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external benchmark (<=2%)") +
+       subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external benchmark (<=2%)",
+       y = "Percentage of VP+ roles",
+       x = "Date (quarters)",
+       caption = "Excludes leaves and non-SSC workforce.") +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   standard_text_y(bold = FALSE) +
@@ -505,7 +511,8 @@ data_focus |>
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   labs(title = glue("Low spans of control"),
        subtitle = "Percentage of managers with 3 or fewer direct reports over time vs lululemon average (dotted line)",
-       x = "Compensation grade levels") +
+       x = "Compensation grade levels",
+       caption = "Excludes leaves and non-SSC workforce.") +
   scale_fill_manual(values = c("above" = hotheat,
                                "ok" = offwhite)) +
   scale_color_manual(values = c("above" = offwhite,
@@ -533,21 +540,33 @@ data_focus |>
               mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)),
             by = "report_effective_date") |> 
   
+  mutate(hi_lo = case_when(filled <0.8 ~ "lo",
+                           filled >0.9 ~ "hi",
+                           .default = "ok")) |> 
+  
   
   ggplot(aes(x = report_effective_date, group = supervisory_organization_level_3)) +
-  geom_rect(aes(xmin = 0.5, xmax = length(unique(data_focus$report_effective_date))+0.5, ymin = 0.8, ymax = .9), fill = pale_green) +
+  geom_rect(aes(xmin = 0.5, xmax = length(unique(data_focus$report_effective_date))+0.5, ymin = 0.8, ymax = .9), fill = neutral_1) +
   geom_hline(yintercept = 0.9, color = neutral_3, linetype = "dashed") +
   geom_hline(yintercept = 0.8, color = neutral_3, linetype = "dashed") +
   geom_line(aes(y = filled)) +
-  geom_line(aes(y = ll_filled), linetype = "dashed") +  
+  # geom_line(aes(y = ll_filled), linetype = "dashed") +  
+  geom_label(aes(label = filled, y = filled, fill = hi_lo, color = hi_lo), family = lulu_font, fontface = "bold") +
   facet_wrap(~ supervisory_organization_level_3) +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE, size = 8) +
   standard_text_y(bold = FALSE) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   labs(title = glue("Fill rate of the organization over time"),
-       subtitle = "Active roles as a percentage of the fully funded organization",
-       x = "Date")
+       subtitle = "Active roles as a percentage of the fully funded organization against ideal target range (80-90% filled)",
+       x = "Date",
+       caption = "Excludes leaves and non-SSC workforce.") +
+  scale_fill_manual(values = c("lo" = hotheat,
+                               "ok" = offwhite,
+                               "hi"  = yellow)) +
+  scale_colour_manual(values = c("lo" = offwhite,
+                               "ok" = offblack,
+                               "hi"  = offblack))
 
 
 ## 9 Succession gaps ----
@@ -571,7 +590,8 @@ data_focus |>
   labs(title = glue("Strutural succession risk by grade over time"),
        subtitle = "Percentage of Director+ roles without a succession path one grade down from the manager",
        x = "Date",
-       y = "Percentage of roles without a clear succession path") 
+       y = "Percentage of roles without a clear succession path",
+       caption = "Excludes leaves and non-SSC workforce.") 
 
 
 data_focus |>
@@ -602,7 +622,8 @@ data_focus |>
   labs(title = glue("Strutural succession risk"),
        subtitle = "Percentage of Director+ roles without a succession path one grade down from the manager",
        x = "Grade level",
-       y = "Percentage of roles without a clear succession path") 
+       y = "Percentage of roles without a clear succession path",
+       caption = "Excludes leaves and non-SSC workforce.") 
   
 
 ## Compression/friction
@@ -624,7 +645,7 @@ data_focus |>
   standard_text_y(bold = FALSE) +
   standard_text_x(bold = FALSE, size = 8) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(title = glue("Strutural compression risk by grade over time"),
+  labs(title = glue("Structural compression risk by grade over time"),
        subtitle = "Percentage of teams featuring same comtribution grade reporting and/or more than 30% of roles within one grade level of the manager",
        x = "Date",
        y = "Percentage of compressed teams") 

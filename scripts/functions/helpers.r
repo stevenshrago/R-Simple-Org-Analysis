@@ -1,5 +1,9 @@
 ## Plot themes  ----
 
+font_add(family = "saans", regular = "/Users/sshrago/Library/Fonts/Saans-Light.otf", bold = "/Users/sshrago/Library/Fonts/Saans-SemiBold.otf" )
+
+showtext::showtext_auto()
+
 # remove gridlines, and axis titles and lines
 theme_clean_lulu <- function(th){ 
   
@@ -14,8 +18,8 @@ theme_clean_lulu <- function(th){
               plot.background = element_rect(fill = offwhite, color = offwhite),
               panel.background = element_rect(color = offwhite, fill = offwhite),
               plot.caption = element_text(family = lulu_font, size = 10),
-              title = element_text(family = lulu_font, size = 18, face = "bold", color = offblack),
-              plot.subtitle = element_text(family = lulu_font, size = 12, color = offblack),
+              title = element_text(family = lulu_font, size = 22, color = offblack),
+              plot.subtitle = element_text(family = lulu_font, size = 16, color = offblack),
               strip.background = element_rect(fill = neutral_1),
               strip.text = element_text(family = lulu_font, size = 8, face = "bold", color = offblack))
   
@@ -82,7 +86,7 @@ standard_line_lims <- function(th, lo = 0.3, hi = 1) {
 
 
 # lulu Font
-lulu_font <- "Saans"
+lulu_font <- "saans"
 
 # lulu colours
 offwhite <-  "#fdfdf8"

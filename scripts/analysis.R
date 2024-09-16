@@ -30,9 +30,27 @@ data_clean <- data_orig |>
                                                       supervisory_organization_level_3 == "Raw Material Developments (Patty Stapp)" ~ "Global Raw Materials (Patty Stapp)",
                                                       supervisory_organization_level_3 == "Supply Chain Strategy & Planning (Ravi Chowdary)" ~ "Supply Chain Strategy & Planning (Andrew Polins)",
                                                       .default = supervisory_organization_level_3)) |>
-  left_join(grade_scoring, by = "compensation_grade")
+  left_join(grade_scoring, by = "compensation_grade") |> 
+  filter(leave_on_leave == "No")
 
-data_clean_drs <- data_clean |> 
+
+oth_clean <- data_clean |> 
+  count(report_effective_date, position_id_workday) |> 
+  filter(n>1) |> 
+  select(-n) |> 
+  inner_join(data_clean, by = c("report_effective_date", "position_id_workday")) |> 
+  filter(str_detect(position_id_worker, "OTH"))
+
+data_clean_oth <- data_clean |> 
+  anti_join(data_clean |> 
+              count(report_effective_date, position_id_workday) |> 
+              filter(n>1) |> 
+              select(-n), by =  c("report_effective_date", "position_id_workday")) |> 
+  bind_rows(oth_clean) |> 
+  mutate(position_id_worker = if_else(str_detect(position_id_worker, "OTH"), position_id_workday, position_id_worker))
+
+
+data_clean_drs <- data_clean_oth |> 
   left_join(data_clean |> 
               count(report_effective_date, position_id_manager), by = c("report_effective_date", "position_id_worker" = "position_id_manager")) |> 
   rename(direct_reports = n) 
@@ -87,6 +105,10 @@ data_full <- data_clean_alerts
 
 data_focus <- data_clean_alerts |> 
   filter(supervisory_organization_level_2 == "Supply Chain (Ted Dagnese)")
+
+
+data_focus |> view()
+
 
 
 ## Graph data ----
@@ -606,6 +628,11 @@ data_focus |>
        subtitle = "Percentage of teams featuring same comtribution grade reporting and/or more than 30% of roles within one grade level of the manager",
        x = "Date",
        y = "Percentage of compressed teams") 
+
+
+
+
+
 
 
 

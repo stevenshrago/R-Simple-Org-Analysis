@@ -25,6 +25,7 @@ data_clean <- data_orig |>
          compensation_grade = str_remove_all(compensation_grade, "L|N|P|S|T|I"),
          compensation_grade = factor(compensation_grade, levels = grade_levels),
          supervisory_organization_level_2 = case_when(supervisory_organization_level_2 == "Supply Chain, Distribution, Sourcing (Ted Dagnese)" ~ "Supply Chain (Ted Dagnese)",
+                                                      supervisory_organization_level_2 == "Design and Merchandising (Sun Choe)" ~ "Creative - Design and Concept (Jonathan Cheung)",
                                                       .default = supervisory_organization_level_2),
          supervisory_organization_level_3 = case_when(supervisory_organization_level_3 == "Raw Material Developments - Advanced Materials Innovation (Yogendra Dandapure)" ~ "Raw Materials Innovation (Yogendra Dandapure)",
                                                       supervisory_organization_level_3 == "Quality Assurance, Strategy, Testing & Compliance (Rene Wickham)" ~ "Product Integrity (Rene Wickham)",
@@ -103,10 +104,12 @@ dates_formatted <- data_clean_alerts |>
 
 ## Prepare data for analysis ----
 
+data_clean_alerts |> tabyl(supervisory_organization_level_2)
+
 data_full <- data_clean_alerts
 
 data_focus <- data_clean_alerts |> 
-  filter(supervisory_organization_level_2 == "Supply Chain (Ted Dagnese)")
+  filter(supervisory_organization_level_2 == "CFO (Meghan Frank)")
 
 
 
@@ -571,6 +574,49 @@ data_focus |>
 
 ## 9 Succession gaps ----
 
+order <- c("E2", "E1", "M5", "M4")
+
+data_full |> 
+  filter(compensation_grade_wkr %in% c("M4", "M5","E1", "E2")) |> 
+  group_by(report_effective_date, supervisory_organization_level_2, compensation_grade_wkr, alert_successors) |> 
+  summarise(total = n()) |> 
+  replace_na(list(alert_successors = "Potential successor")) |> 
+  summarise(succession_risk =  percent(sum(total[alert_successors == "No successor"]) / sum(total),digits = 0)) |>
+  group_by(supervisory_organization_level_2) |> 
+  mutate(label = if_else(report_effective_date == max(report_effective_date), succession_risk, NA),
+         hi_lo = case_when(label <0.25 ~ "lo",
+                           label >= 0.25 & label < 0.5 ~ "mid",
+                           label >= 0.5 ~ "hi"),
+         report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted),
+         compensation_grade_wkr = factor(compensation_grade_wkr, levels = order),
+         supervisory_organization_level_2 = str_wrap(supervisory_organization_level_2, width = 20)) |>
+  drop_na(supervisory_organization_level_2) |>
+  ggplot(aes(x = report_effective_date, y = succession_risk, group = compensation_grade_wkr)) +
+  geom_line(colour = neutral_3) +
+  geom_label(aes(label = label, fill = hi_lo, color = hi_lo), family = lulu_font, fontface = "bold") +
+  facet_grid(rows = vars(compensation_grade_wkr), cols = vars(supervisory_organization_level_2)) +
+  theme_clean_lulu() +
+  standard_text_y(bold = FALSE) +
+  standard_text_x(bold = FALSE, size = 8) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_x_discrete(breaks = c("Aug 2023", "Aug 2024")) +
+  theme(axis.text.y = element_blank()) +
+  labs(title = glue("Strutural succession risk by grade over time"),
+       subtitle = "Percentage of Director+ roles without a direct succession path one grade down from the manager",
+       x = "Date",
+       y = "Percentage of roles without a clear succession path",
+       caption = "Excludes leaves and non-SSC workforce.") +
+  scale_fill_manual(values = c("lo" = offwhite,
+                              "mid" = yellow,
+                              "hi" = hotheat)) +
+  scale_colour_manual(values = c("lo" = offblack,
+                               "mid" = offblack,
+                               "hi" = offwhite))
+
+data_full |> tabyl(supervisory_organization_level_2)
+
+
+
 data_focus |>
   filter(compensation_grade_wkr %in% c("M4", "M5","E1", "E2", "E3", "E4")) |> 
   group_by(report_effective_date, compensation_grade_wkr, alert_successors) |> 
@@ -609,16 +655,22 @@ data_focus |>
                            succession_risk >0.5 & succession_risk <= 0.75 ~ "hi",
                            succession_risk >0.75  ~ "vhi")) |> 
   ggplot(aes(x = compensation_grade_wkr, y = succession_risk, group = supervisory_organization_level_3)) +
-  geom_bar(aes(fill = hi_lo), stat = "identity", position = position_dodge(), colour = offwhite, width = 0.9) +
-  geom_text(aes(label = supervisory_organization_level_3, y = succession_risk/2), stat = "identity", position = position_dodge(width = 1), angle = 90, family = lulu_font) +
+  geom_bar(aes(fill = hi_lo), stat = "identity", position = position_dodge(), colour = offwhite, width = 0.9, alpha = 0.8) +
+  geom_text(aes(label = supervisory_organization_level_3, y = succession_risk, color = hi_lo), stat = "identity", position = position_dodge(width = 0.9), family = lulu_font, hjust = 1) +
   theme_clean_lulu() +
   standard_text_y(bold = FALSE) +
   standard_text_x() +
+  coord_flip() +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   scale_fill_manual(values = c("lo" = neutral_2,
                                "mid" = neutral_3,
                                "hi" = dark_brown,
                                "vhi" = hotheat)) +
+  scale_color_manual(values = c("lo" = offblack,
+                               "mid" = offwhite,
+                               "hi" = offwhite,
+                               "vhi" = offblack)) +
+  
   labs(title = glue("Strutural succession risk"),
        subtitle = "Percentage of Director+ roles without a succession path one grade down from the manager",
        x = "Grade level",

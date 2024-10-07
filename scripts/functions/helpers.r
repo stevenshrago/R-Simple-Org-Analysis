@@ -140,3 +140,14 @@ remove_fields <- c("vacancy", "leave_on_leave", "position_id_worker", "currently
 
 root <- "83-093759"
 
+find_all_subordinates <- function(manager_id, employees_df) {
+  subordinates <- manager_id
+  new_subordinates <- manager_id
+  
+  while(length(new_subordinates) > 0) {
+    new_subordinates <- employees_df$position_id_worker[employees_df$position_id_manager %in% new_subordinates]
+    subordinates <- c(subordinates, new_subordinates)
+  }
+  
+  unique(subordinates)
+}

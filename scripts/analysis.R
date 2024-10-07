@@ -279,7 +279,7 @@ data_focus |>
 
 data_focus |>
   group_by(report_effective_date, .data[[so_level]]) |> # calculate average span of control
-  summarise(average_span = round(mean(direct_reports, na.rm = TRUE),1.1)) |>
+  summarise(average_span = round(mean(direct_reports, na.rm = TRUE),1.1)) |> 
   drop_na(.data[[so_level]]) |> 
   
   right_join(data_focus |>  # next few lines remove records for historical sup orgs that no longer exist in 2024
@@ -290,17 +290,26 @@ data_focus |>
   filter(!.data[[so_level]] %in% trim) |>
   
   drop_na(.data[[so_level]], average_span) |> 
+    
+  left_join(data_full |> 
+                group_by(report_effective_date) |> 
+                summarise(average_span_ll = round(mean(direct_reports, na.rm = TRUE),1.1)),
+            by = "report_effective_date"
+            ) |> 
   
   
   mutate(low_ok = if_else(average_span >= 5 & average_span <= 8, "ok", "low"),
          report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> # categorize span ranges for plots
-  ggplot(aes(x = report_effective_date, y = average_span, group = .data[[so_level]])) +
+  ggplot(aes(x = report_effective_date)) +
   geom_rect(aes(xmin = 0, xmax = length(unique(data_focus$report_effective_date))+1, ymin = 5, ymax = 8), fill = neutral_1) +
-  geom_line() +
+  geom_line(aes(y = average_span, group = .data[[so_level]])) +
+  geom_line(aes(y = average_span_ll, group = .data[[so_level]]), color = neutral_3, size = 0.5, linetype = "dashed") +
   facet_wrap(~ .data[[so_level]]) +
-  geom_hline(yintercept = 5, color = neutral_3, linetype = "dashed") +
-  geom_hline(yintercept = 8, color = neutral_3, linetype = "dashed") +
-  geom_label(aes(label = average_span, fill = low_ok, color = low_ok), family = lulu_font, fontface = "bold") +
+  geom_hline(yintercept = 5, color = neutral_3, linetype = "dotted") +
+  geom_hline(yintercept = 8, color = neutral_3, linetype = "dotted") +
+  
+  geom_label(aes(y = average_span_ll, label = average_span_ll), fill = offwhite, color = neutral_3, family = lulu_font, fontface = "bold", label.size = 0) +
+  geom_label(aes(y = average_span, label = average_span, fill = low_ok, color = low_ok), family = lulu_font, fontface = "bold") +
   labs(title = glue("Average span of control - {title_name}"),
        subtitle = "Average number of direct reports over time vs lululemon average (dotted line) and best practice guidelines (5 to 8)",
        x = "Date",

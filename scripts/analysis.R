@@ -116,7 +116,7 @@ data_clean_alerts_fixed <- data_clean_alerts |>
                                                       supervisory_organization_level_3 == "Talent Acquisition (Steve Clyne)" ~ "Talent Acquisition (Marc Wendorf)",
                                                       supervisory_organization_level_3 == "People & Culture Operations (Susan Gelinas (Inherited))" ~ "People & Culture Operations (Mandy Whiting)",
                                                       
-                                                      
+                                                     
                                                       
                                                       .default = supervisory_organization_level_3),
          
@@ -145,8 +145,12 @@ data_clean_alerts_fixed |> glimpse()
 
 data_full <- data_clean_alerts_fixed
 
+data_clean_alerts_fixed |>
+  filter(supervisory_organization_level_2 == "CFO (Meghan Frank)") |> 
+  tabyl(supervisory_organization_level_3)
+
 data_focus <- data_clean_alerts_fixed |> 
-  filter(supervisory_organization_level_3 == "Global Risk & Advisory Services (Greg Smith)")
+  filter(supervisory_organization_level_3 == "Financial Reporting Accounting & Treasury (Alex Grieve)")
 
 title_level <- "supervisory_organization_level_3"
 so_level <- "supervisory_organization_level_4"

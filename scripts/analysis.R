@@ -176,15 +176,50 @@ datapasta::vector_paste(subordinates)c("83-131964", "83-089245", "83-110204", "8
 c("83-167854", "83-133921", "83-224957", "83-225420", "83-225048", "83-225419", "83-161700", "83-065853", "83-152141", "83-152157", "83-112902", "83-224869", "83-110204", "83-153444", "83-166735", "83-130955")
 
 
+data_full |>
+  mutate(job_title_wkr = tolower(job_title_wkr)) |> 
+  filter(report_effective_date == max(data_full$report_effective_date),
+         str_detect(job_title_wkr, "innov")) |> 
+  count(supervisory_organization_level_2) |> 
+  mutate(total = sum(n))
+  
+
+  data_full |> 
+    filter(report_effective_date == max(data_full$report_effective_date),
+           supervisory_organization_level_4 == "People Analytics (Kami Tilmann)") |> view()
 
 
 
+regex_data <- "data|insight|\b(?<!business\\s)analy|scient|report"
 
 
+data_full |> 
+  filter(report_effective_date == max(data_full$report_effective_date)) |> 
+  count(supervisory_organization_level_2, supervisory_organization_level_3, name = "employees") |> 
+  group_by(supervisory_organization_level_2) |> 
+  arrange(desc(employees), .by_group = TRUE) |>
+  left_join(data_full |> 
+              filter(report_effective_date == max(data_full$report_effective_date),
+                     compensation_grade_wkr %in% c("M5", "E1", "E2", "E3", "E4")) |> 
+              count(supervisory_organization_level_2, supervisory_organization_level_3, name = "execs"),
+            by = c("supervisory_organization_level_2", "supervisory_organization_level_3")) |>
+  drop_na(supervisory_organization_level_2, supervisory_organization_level_3) |> 
+  filter(employees < 50) |> 
+  view()
+  
+  
 
 
-
-
+data_full |> 
+  filter(report_effective_date == max(data_full$report_effective_date)) |> 
+  count(supervisory_organization_level_2, supervisory_organization_level_3, country, name = "employees") |> 
+  group_by(supervisory_organization_level_2, supervisory_organization_level_3) |> 
+  summarise(countries = sum(length(country))) |> 
+  group_by(supervisory_organization_level_2) |> 
+  arrange(desc(countries), .by_group = TRUE) |> 
+  drop_na(supervisory_organization_level_2, supervisory_organization_level_3) |> view()
+  filter(countries > 5) |> 
+  view()
 
 
 

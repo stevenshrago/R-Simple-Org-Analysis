@@ -407,6 +407,42 @@ data_focus |>
                                 "high" = offwhite))
 
 
+### 3.1 Executive development (all lululemon)  ----
+
+data_full |> 
+  mutate(exec = if_else(str_detect(compensation_grade_wkr, "E"), "exec", "non")) |> # classifiy exec roles
+  group_by(report_effective_date, supervisory_organization_level_2, exec) |> # group and count exec roles
+  summarise(n = n()) |>
+  drop_na(exec) |> 
+  pivot_wider(id_cols = c("report_effective_date", "supervisory_organization_level_2"), names_from = exec, values_from = n) |> 
+  summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |> # percentages of exec roles
+  mutate(vsbm = if_else(exec_perc > 0.02, "high", "ok"),
+         report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>  # classification of ranges for plot
+  drop_na(supervisory_organization_level_2) |> 
+  filter(str_detect(supervisory_organization_level_2, "Office of CEO", negate = TRUE)) |> 
+  ggplot() +
+  geom_rect(aes(xmin = 0.5, xmax = length(unique(data_full$report_effective_date))+0.5, ymin = 0, ymax = .02), fill = neutral_1) +
+  geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dotted") +
+  geom_line(aes(x = report_effective_date, y = exec_perc, group = supervisory_organization_level_2), color = offblack, size = 1) +
+  geom_label(aes(x = report_effective_date, y = exec_perc, label = exec_perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
+  facet_wrap(~supervisory_organization_level_2) +
+  labs(title = glue("Executive roles percentage"),
+       subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external benchmark (<=2%)",
+       y = "Percentage of VP+ roles",
+       x = "Date (quarters)",
+       caption = "Excludes leaves and non-SSC workforce.") +
+  theme_clean_lulu() +
+  standard_text_x(bold = FALSE) +
+  standard_text_y(bold = FALSE) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0,0.05)) +
+  
+  scale_fill_manual(values = c("ok" = pale_green,
+                               "high" = hotheat)) +
+  scale_color_manual(values = c("ok" = offblack,
+                                "high" = offwhite))
+
+
+
 ## 4 Project Managers  ----
 
 

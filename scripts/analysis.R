@@ -91,8 +91,7 @@ alerts <- data_clean_managers |>
 data_clean_alerts <- data_clean_managers |> 
   left_join(alerts |> 
               select(report_effective_date, position_id_manager, alert_successors:alert_gaps),
-            by = c("report_effective_date", "position_id_worker" = "position_id_manager")) |> 
-  filter(report_effective_date > "2023-05-05")
+            by = c("report_effective_date", "position_id_worker" = "position_id_manager")) 
 
 
 dates_formatted <- data_clean_alerts |> 
@@ -143,7 +142,8 @@ data_clean_alerts_fixed <- data_clean_alerts |>
 
 data_clean_alerts_fixed |> glimpse()
 
-data_full <- data_clean_alerts_fixed
+data_full <- data_clean_alerts_fixed |> 
+  filter(report_effective_date > "2023-05-05")
 
 data_clean_alerts_fixed |>
   filter(supervisory_organization_level_2 == "CFO (Meghan Frank)") |> 
@@ -179,9 +179,9 @@ c("83-167854", "83-133921", "83-224957", "83-225420", "83-225048", "83-225419", 
 data_full |>
   mutate(job_title_wkr = tolower(job_title_wkr)) |> 
   filter(report_effective_date == max(data_full$report_effective_date),
-         str_detect(job_title_wkr, "innov")) |> 
-  count(supervisory_organization_level_2) |> 
-  mutate(total = sum(n))
+         str_detect(job_title_wkr, regex_data)) |> 
+  count(supervisory_organization_level_4) |> 
+  mutate(total = sum(n)) |> view()
   
 
   data_full |> 
@@ -758,6 +758,33 @@ data_focus |>
 
 
 
+## 10 Operating leverage  ----
+
+
+
+
+data_full |> 
+  filter(vacancy == "No",
+         supervisory_organization_level_2 == "CFO (Meghan Frank)") |> 
+  group_by(supervisory_organization_level_3, report_effective_date) |>
+  summarise(n = n()) |> 
+  mutate(diff = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)) |>
+  # filter(str_detect(supervisory_organization_level_2, "Office", negate = TRUE),
+  #        str_detect(supervisory_organization_level_2, "MIRROR", negate = TRUE)) |> 
+  drop_na(supervisory_organization_level_3) |> 
+  left_join(data_full |> 
+              filter(vacancy == "No") |> 
+              count(report_effective_date) |>
+              mutate(diff_ll = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)), by = "report_effective_date") |> 
+  mutate(diff_from_ave = diff - diff_ll) |> 
+  
+  ggplot(aes(x = report_effective_date, y = diff_from_ave, group = supervisory_organization_level_3)) +
+  geom_hline(yintercept = 0, color = neutral_2) +
+  geom_line() +
+  scale_y_continuous() +
+  facet_wrap(~supervisory_organization_level_3) +
+  lims(y = c(-0.3, 0.5)) +
+  theme_clean_lulu()
 
 
 

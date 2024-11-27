@@ -112,9 +112,36 @@ data_clean_alerts_fixed <- data_clean_alerts |>
                                                       supervisory_organization_level_3 == "Quality (Rene Wickham)" ~ "Product Integrity (Rene Wickham)",
                                                       supervisory_organization_level_3 == "Raw Material Developments (Patty Stapp)" ~ "Global Raw Materials (Patty Stapp)",
                                                       supervisory_organization_level_3 == "Supply Chain Strategy & Planning (Ravi Chowdary)" ~ "Supply Chain Strategy & Planning (Andrew Polins)",
+                                                      
+                                                      
                                                       supervisory_organization_level_3 == "Talent Acquisition (Steve Clyne)" ~ "Talent Acquisition (Marc Wendorf)",
                                                       supervisory_organization_level_3 == "People & Culture Operations (Susan Gelinas (Inherited))" ~ "People & Culture Operations (Mandy Whiting)",
+                                                      str_detect(supervisory_organization_level_3, "Business Partnering - International") ~ "Business Partnering – Global Corporate Functions (Jacqueline Misshula)",
+                                                      str_detect(supervisory_organization_level_3, "Business Partnering - SSC") ~ "Business Partnering - Product & Supply Chain (Stewart Angus)",
                                                       
+                                                      
+                                                      supervisory_organization_level_3 == "Ecommerce (Justin Richmond)" ~ "Ecommerce (Danny Ryder)",
+                                                      supervisory_organization_level_3 == "Member Engagement (Madeline Thompson)" ~ "Member Engagement (Jiamei Bai)",
+                                                      supervisory_organization_level_3 == "Member Engagement (TJ Whitmell)" ~ "Member Engagement (Jiamei Bai)",
+                                                      str_detect(supervisory_organization_level_3, "MIRROR & Digital Fitness") ~ "MIRROR & Digital Fitness",
+                                                      
+                                                      str_detect(supervisory_organization_level_3, "Financial Planning & Analysis") ~ "Financial Planning & Analysis",
+                                                      str_detect(supervisory_organization_level_3, "Strategic Finance") ~ "Financial Planning & Analysis",
+                                                      str_detect(supervisory_organization_level_3, "Financial Reporting Accounting") ~ "Finance, Accounting and Tax (Alex Grieve)",
+                                                      
+                                                      str_detect(supervisory_organization_level_3, "Integrated GTM") ~ "Business Transformation (Ana Badell)",
+                                                      str_detect(supervisory_organization_level_3, "Operations Excellence") ~ "Business Transformation (Ana Badell)",
+                                                      
+                                                      supervisory_organization_level_3 == "Strategy and Ops (Andrea Heckbert, Christine Turner (On Leave))" ~ "Strategy and Ops (Christine Turner)",
+                                                      
+                                                      supervisory_organization_level_3 == "Technology Security (Alexander Padilla)" ~ "Cyber Defense & Incident Response (Brian Seaford)",
+                                                      supervisory_organization_level_3 == "Technology Security (Brian Seaford)" ~ "Cyber Defense & Incident Response (Brian Seaford)",
+                                                  
+                                                      supervisory_organization_level_3 == "Tech Priorities (Diane Cañate)" ~ "Strategy & Operations (Diane Cañate)",
+                                                      supervisory_organization_level_3 == "Global Digital Technology (Jamie Turnbull)" ~ "Global Digital Technology (Jebin Zacharia)",
+                                                      
+                                                      supervisory_organization_level_3 == "Product & Distribution Technology (Deb Huntting)" ~ "Global Technology Services (Venki Krishnababu)",
+                                                      supervisory_organization_level_3 == "Technology Enterprise Planning and Operations (Justin Walton)" ~ "Global Technology Services (Venki Krishnababu)",
                                                      
                                                       
                                                       .default = supervisory_organization_level_3),
@@ -125,14 +152,6 @@ data_clean_alerts_fixed <- data_clean_alerts |>
                                                       .default = supervisory_organization_level_4
          ))
 
-# Kaelie - yes#
-# carol - yes
-# tristan - yes
-# shaleena - yes
-# farzin - yes
-
-# tessa borsoi
-# peter bzowski
 
 
 
@@ -760,32 +779,95 @@ data_focus |>
 
 ## 10 Operating leverage  ----
 
+data_full |> 
+  tabyl(supervisory_organization_level_2) 
+
+"Americas and Global Guest Innovation (Celeste Burgoyne)" ok
+   "Brand & Creative Content (Nikki Neuburger)" ok
+"CFO (Meghan Frank)" ok
+   "Creative - Design and Concept (Jonathan Cheung)"
+   "International (Andre Maestrini)" ok
+   "Legal (Shannon Higginson)" ok
+   "People & Culture (Susan Gelinas)" ok
+   "Supply Chain (Ted Dagnese)" ok
+   "Technology (Julie Averill)"
+
+
+
+
+# z scores?
+
+data_full |> 
+  filter(
+    # vacancy == "No",
+         supervisory_organization_level_2 == "Americas and Global Guest Innovation (Celeste Burgoyne)") |> 
+  group_by(supervisory_organization_level_3, report_effective_date) |>
+  summarise(n = n()) |> 
+  mutate(growth_rate = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)) |>
+  drop_na(supervisory_organization_level_3) |> 
+  left_join(data_full |> 
+              filter(vacancy == "No") |> 
+              count(report_effective_date) |>
+              mutate(growth_rate_ll = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)), by = "report_effective_date") |> 
+  mutate(team_perc = n.x/n.y,
+         weighted_growth = team_perc * growth_rate,
+         relative_growth = growth_rate - growth_rate_ll,
+         growth_significance = weighted_growth/mean(team_perc, na.rm = TRUE)) |>
+  
+  ggplot(aes(x = report_effective_date,
+             y = relative_growth,
+             size = team_perc,
+             color = supervisory_organization_level_3)) +
+  geom_line() +
+  geom_point(shape = 21, fill = offwhite) +
+  
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_size_continuous(range = c(1, 10)) +
+  theme_clean_lulu() +
+  standard_text_x(bold = FALSE) +
+  standard_text_y(bold = FALSE) +
+  facet_wrap(~supervisory_organization_level_3) +
+  lims(y =c(-0.5, 0.5)) +
+  labs(title = "Team Growth Rates Relative to Organization",
+       y = "Relative Growth Rate",
+       size = "Team Proportion")
+  
+  
+
+
 
 
 
 data_full |> 
   filter(vacancy == "No",
-         supervisory_organization_level_2 == "CFO (Meghan Frank)") |> 
+         supervisory_organization_level_2 == "People & Culture (Susan Gelinas)") |> 
   group_by(supervisory_organization_level_3, report_effective_date) |>
   summarise(n = n()) |> 
-  mutate(diff = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)) |>
-  # filter(str_detect(supervisory_organization_level_2, "Office", negate = TRUE),
-  #        str_detect(supervisory_organization_level_2, "MIRROR", negate = TRUE)) |> 
+  # mutate(diff = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)) |>
+  ungroup() |> 
+  mutate(n = scale(n)) |>
   drop_na(supervisory_organization_level_3) |> 
   left_join(data_full |> 
               filter(vacancy == "No") |> 
               count(report_effective_date) |>
-              mutate(diff_ll = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)), by = "report_effective_date") |> 
-  mutate(diff_from_ave = diff - diff_ll) |> 
+              mutate(n_ll = scale(n)) |> 
+              select(-n), by = "report_effective_date") |> 
+  mutate(diff_from_ave = round(n - n_ll, 1),
+         hi_lo = if_else(diff_from_ave > 0, "hi", "lo")) |> 
   
   ggplot(aes(x = report_effective_date, y = diff_from_ave, group = supervisory_organization_level_3)) +
   geom_hline(yintercept = 0, color = neutral_2) +
   geom_line() +
+  geom_text(aes(label = diff_from_ave, color = hi_lo), family = lulu_font, vjust = -1) +
   scale_y_continuous() +
   facet_wrap(~supervisory_organization_level_3) +
-  lims(y = c(-0.3, 0.5)) +
-  theme_clean_lulu()
-
+  # lims(y = c(-0.3, 0.5)) +
+  theme_clean_lulu() +
+  standard_text_x(bold = FALSE) +
+  scale_color_manual(values = c("hi" = hotheat,
+                                "lo" = neutral_2)) +
+  labs(title = "Potential operating leverage",
+       subtitle = "Percentage difference in team growth vs organizational growth over time")
 
 
 

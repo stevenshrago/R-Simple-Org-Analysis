@@ -384,7 +384,9 @@ data_focus |>
 
 ## 3 Executive development - L2 only ---- 
 
-data_focus |> 
+data_full |>
+  filter(str_detect(supervisory_organization_level_2, "MIRROR|CEO", negate = TRUE),
+         leave_on_leave == "No") |> 
   mutate(exec = if_else(str_detect(compensation_grade_wkr, "E"), "exec", "non")) |> # classifiy exec roles
   group_by(report_effective_date, supervisory_organization_level_2, exec) |> # group and count exec roles
   summarise(n = n()) |>
@@ -401,24 +403,28 @@ data_focus |>
               summarise(ll_exec_perc = percent(exec/(exec+non), digits = 1)), by = c("report_effective_date")
             ) |> 
   
-  mutate(vsbm = if_else(exec_perc > 0.02, "high", "ok"),
-         report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>  # classification of ranges for plot
+  mutate(vsbm = if_else(exec_perc > 0.02, "high", "ok"),,
+         report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted),
+         label = if_else(report_effective_date == "Nov 2024", exec_perc, NA),
+         label_ll = if_else(report_effective_date == "Nov 2024", ll_exec_perc, NA)) |># classification of ranges for plot
   ggplot() +
   geom_rect(aes(xmin = 0.5, xmax = length(unique(data_focus$report_effective_date))+0.5, ymin = 0, ymax = .02), fill = neutral_1) +
   geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dotted") +
   geom_line(aes(x = report_effective_date, y = exec_perc, group = supervisory_organization_level_2), color = offblack, size = 1) +
-  geom_line(aes(x = report_effective_date, y = ll_exec_perc, group = supervisory_organization_level_2), color = neutral_3, size = 0.5, linetype = "dashed") +
-  geom_label(aes(x = report_effective_date, y = ll_exec_perc, label = ll_exec_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
-  geom_label(aes(x = report_effective_date, y = exec_perc, label = exec_perc, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
+  # geom_line(aes(x = report_effective_date, y = ll_exec_perc, group = supervisory_organization_level_2), color = neutral_3, size = 0.5, linetype = "dashed") +
+  # geom_label(aes(x = report_effective_date, y = ll_exec_perc, label = label_ll), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
+  geom_label(aes(x = report_effective_date, y = exec_perc, label = label, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
   labs(title = glue("Executive roles percentage"),
        subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external benchmark (<=2%)",
        y = "Percentage of VP+ roles",
        x = "Date (quarters)",
        caption = "Excludes leaves and non-SSC workforce.") +
   theme_clean_lulu() +
+  facet_wrap(~supervisory_organization_level_2) +
+  
   standard_text_x(bold = FALSE) +
   standard_text_y(bold = FALSE) +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0,0.05)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0,0.07)) +
 
   scale_fill_manual(values = c("ok" = pale_green,
                                "high" = hotheat)) +
@@ -795,12 +801,12 @@ data_full |>
 
 
 
-# z scores?
 
 data_full |> 
   filter(
     # vacancy == "No",
-         supervisory_organization_level_2 == "Americas and Global Guest Innovation (Celeste Burgoyne)") |> 
+         supervisory_organization_level_2 == "Technology (Julie Averill)",
+         str_detect(supervisory_organization_level_3, "Assistants", negate = TRUE)) |> 
   group_by(supervisory_organization_level_3, report_effective_date) |>
   summarise(n = n()) |> 
   mutate(growth_rate = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)) |>
@@ -812,7 +818,8 @@ data_full |>
   mutate(team_perc = n.x/n.y,
          weighted_growth = team_perc * growth_rate,
          relative_growth = growth_rate - growth_rate_ll,
-         growth_significance = weighted_growth/mean(team_perc, na.rm = TRUE)) |>
+         growth_significance = weighted_growth/mean(team_perc, na.rm = TRUE),
+         label = if_else(relative_growth > 0, relative_growth, NA)) |>
   
   ggplot(aes(x = report_effective_date,
              y = relative_growth,
@@ -822,52 +829,60 @@ data_full |>
   geom_point(shape = 21, fill = offwhite) +
   
   geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_text(aes(label = label), size = 4, vjust = -1, color = offblack, fontface = "bold", family = lulu_font) +
   scale_size_continuous(range = c(1, 10)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
   standard_text_y(bold = FALSE) +
   facet_wrap(~supervisory_organization_level_3) +
-  lims(y =c(-0.5, 0.5)) +
-  labs(title = "Team Growth Rates Relative to Organization",
+  # lims(y =c(-0.5, 0.5)) +
+  labs(title = "Team headcount growth rates relative to overall heacount growth",
+       subtitle = "SLT-1 department growth by quarter; line thickness shows relative team size",
        y = "Relative Growth Rate",
        size = "Team Proportion")
   
-  
-
-
-
-
-
-data_full |> 
-  filter(vacancy == "No",
-         supervisory_organization_level_2 == "People & Culture (Susan Gelinas)") |> 
-  group_by(supervisory_organization_level_3, report_effective_date) |>
+# whole org
+data_full |>
+  filter(str_detect(supervisory_organization_level_2, "CEO|MIRROR", negate = TRUE)) |> 
+  group_by(supervisory_organization_level_2, report_effective_date) |>
   summarise(n = n()) |> 
-  # mutate(diff = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)) |>
-  ungroup() |> 
-  mutate(n = scale(n)) |>
-  drop_na(supervisory_organization_level_3) |> 
+  mutate(growth_rate = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)) |>
+  drop_na(supervisory_organization_level_2) |> 
   left_join(data_full |> 
               filter(vacancy == "No") |> 
               count(report_effective_date) |>
-              mutate(n_ll = scale(n)) |> 
-              select(-n), by = "report_effective_date") |> 
-  mutate(diff_from_ave = round(n - n_ll, 1),
-         hi_lo = if_else(diff_from_ave > 0, "hi", "lo")) |> 
+              mutate(growth_rate_ll = percent((n - lag(n, n = 1))/lag(n, n = 1), digits = 1)), by = "report_effective_date") |> 
+  mutate(team_perc = n.x/n.y,
+         weighted_growth = team_perc * growth_rate,
+         relative_growth = growth_rate - growth_rate_ll,
+         growth_significance = weighted_growth/mean(team_perc, na.rm = TRUE),
+         label = if_else(relative_growth > 0, relative_growth, NA)) |>
   
-  ggplot(aes(x = report_effective_date, y = diff_from_ave, group = supervisory_organization_level_3)) +
-  geom_hline(yintercept = 0, color = neutral_2) +
+  ggplot(aes(x = report_effective_date,
+             y = relative_growth,
+             size = team_perc,
+             color = supervisory_organization_level_2)) +
   geom_line() +
-  geom_text(aes(label = diff_from_ave, color = hi_lo), family = lulu_font, vjust = -1) +
-  scale_y_continuous() +
-  facet_wrap(~supervisory_organization_level_3) +
-  # lims(y = c(-0.3, 0.5)) +
+  geom_point(shape = 21, fill = offwhite) +
+  
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_text(aes(label = label), size = 4, vjust = -1, color = offblack, fontface = "bold", family = lulu_font) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE) +
-  scale_color_manual(values = c("hi" = hotheat,
-                                "lo" = neutral_2)) +
-  labs(title = "Potential operating leverage",
-       subtitle = "Percentage difference in team growth vs organizational growth over time")
+  standard_text_y(bold = FALSE) +
+  facet_wrap(~supervisory_organization_level_2) +
+  # lims(y =c(-0.5, 0.5)) +
+  labs(title = "Team headcount growth rates relative to overall heacount growth",
+       subtitle = "SLT-1 department growth by quarter; line thickness shows relative team size",
+       y = "Relative Growth Rate",
+       size = "Team Proportion")
+
+
+
+
 
 
 

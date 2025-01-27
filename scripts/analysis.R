@@ -180,6 +180,66 @@ so_level <- "supervisory_organization_level_3"
 
 ## EXPERIMENTS ----  
 
+data_full |> # lululemon averages
+  filter(vacancy == "No") |> 
+  mutate(exec = if_else(str_detect(compensation_grade_wkr, "E"), "exec", "non")) |> 
+  group_by(report_effective_date, exec) |> 
+  summarise(n = n()) |> 
+  drop_na(exec) |> 
+  pivot_wider(id_cols = c("report_effective_date"), names_from = exec, values_from = n) |> 
+  summarise(ll_exec_perc = percent(exec/(exec+non), digits = 1))
+
+execs <- data_full |> 
+  filter(report_effective_date == "2024-11-01") |> 
+  mutate(exec = if_else(str_detect(compensation_grade_wkr, "E"), "exec", "non")) |> 
+  group_by(report_effective_date, exec) |> 
+  summarise(n = n()) |> 
+  filter(exec == "exec") |> 
+  pull(n)
+
+# Current, excluding vacancies 2.5% (2% = 109)
+data_full |> 
+  filter(report_effective_date == "2024-11-01",
+         vacancy == "No"
+         ) |> 
+  summarise(n = n()) |> 
+  mutate(n = n - execs,
+         exec_perc = percent(execs/n, digits = 2))
+  
+# Current, including vacancies 2.3% (2% = 120)
+data_full |> 
+  filter(report_effective_date == "2024-11-01",
+         # vacancy == "No"
+  ) |> 
+  summarise(n = n()) |> 
+  mutate(n = n - execs,
+         exec_perc = percent(execs/n, digits = 2))
+
+
+# Future reduction of 100 roles, +8 VPs, excluding vacancies
+data_full |> 
+  filter(report_effective_date == "2024-11-01",
+         vacancy == "No"
+  ) |> 
+  summarise(n = n()) |> 
+  mutate(n = (n - 100) - (execs + 8),
+         exec_perc = percent(execs/n, digits = 2))
+
+
+# Future reduction of 100 roles, +8 VPs, including vacancies
+data_full |> 
+  filter(report_effective_date == "2024-11-01",
+         # vacancy == "No"
+  ) |> 
+  summarise(n = n()) |> 
+  mutate(n = (n - 100) - (execs + 8),
+         exec_perc = percent(execs/n, digits = 2))
+
+
+
+
+
+
 manager_id <- data_clean_alerts_fixed |> 
   filter(str_detect(worker_name_wkr, "Borsoi")) |> 
   pull(position_id_worker)
@@ -464,11 +524,11 @@ data_full |>
          label = if_else(report_effective_date == "Nov 2024", exec_perc, NA),
          label_ll = if_else(report_effective_date == "Nov 2024", ll_exec_perc, NA)) |># classification of ranges for plot
   ggplot() +
-  geom_rect(aes(xmin = 0.5, xmax = length(unique(data_focus$report_effective_date))+0.5, ymin = 0, ymax = .02), fill = neutral_1) +
+  geom_rect(aes(xmin = 0.5, xmax = length(unique(data_full$report_effective_date))+0.5, ymin = 0, ymax = .02), fill = neutral_1) +
   geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dotted") +
   geom_line(aes(x = report_effective_date, y = exec_perc, group = supervisory_organization_level_2), color = offblack, size = 1) +
-  geom_line(aes(x = report_effective_date, y = ll_exec_perc, group = supervisory_organization_level_2), color = neutral_3, size = 0.5, linetype = "dashed") +
-  geom_label(aes(x = report_effective_date, y = ll_exec_perc, label = label_ll), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
+  # geom_line(aes(x = report_effective_date, y = ll_exec_perc, group = supervisory_organization_level_2), color = neutral_3, size = 0.5, linetype = "dashed") +
+  # geom_label(aes(x = report_effective_date, y = ll_exec_perc, label = label_ll), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
   geom_label(aes(x = report_effective_date, y = exec_perc, label = label, fill = vsbm, color = vsbm), family = lulu_font, fontface = "bold") +
   labs(title = glue("Executive roles percentage"),
        subtitle = "Percentage of VP+ roles vs lululemon average (dotted line) and external benchmark (<=2%)",

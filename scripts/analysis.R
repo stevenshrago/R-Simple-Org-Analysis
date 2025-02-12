@@ -201,7 +201,8 @@ execs <- data_full |>
 data_full |> 
   filter(report_effective_date == "2024-11-01",
          vacancy == "No"
-         ) |> 
+         ) |>
+  group_by()
   summarise(n = n()) |> 
   mutate(n = n - execs,
          exec_perc = percent(execs/n, digits = 2))
@@ -508,7 +509,7 @@ data_full |>
   summarise(n = n()) |>
   drop_na(exec) |> 
   pivot_wider(id_cols = c("report_effective_date", "supervisory_organization_level_2"), names_from = exec, values_from = n) |> 
-  summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |> # percentages of exec roles
+  summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |> tail(20) # percentages of exec roles 
   
   left_join(data_full |> # lululemon averages
               mutate(exec = if_else(str_detect(compensation_grade_wkr, "E"), "exec", "non")) |> 

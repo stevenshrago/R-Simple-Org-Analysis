@@ -9,7 +9,7 @@ source("scripts/functions/helpers.r")
 
 # data_orig <- readxl::read_xlsx("data_in/3ydata.xlsx", sheet = 2, .name_repair = make_clean_names) # read in the orgiinal excel file and standardize the variable names (snake case)
 
-data_orig <- readxl::read_xlsx("data_in/quarterly_data_original_w_country.xlsx", sheet = 2, .name_repair = make_clean_names) 
+data_orig <- readxl::read_xlsx("data_in/quarterly_data_original_w_country_q4.xlsx", sheet = 2, .name_repair = make_clean_names) 
 
 # extract_date <-  "2024-05-03"
 
@@ -1102,14 +1102,14 @@ data_full |>
 data_full |> 
   tabyl(supervisory_organization_level_2) 
 
-"Americas and Global Guest Innovation (Celeste Burgoyne)" ok
-   "Brand & Creative Content (Nikki Neuburger)" ok
-"CFO (Meghan Frank)" ok
+"Americas and Global Guest Innovation (Celeste Burgoyne)"
+   "Brand & Creative Content (Nikki Neuburger)"
+"CFO (Meghan Frank)"
    "Creative - Design and Concept (Jonathan Cheung)"
-   "International (Andre Maestrini)" ok
-   "Legal (Shannon Higginson)" ok
-   "People & Culture (Susan Gelinas)" ok
-   "Supply Chain (Ted Dagnese)" ok
+   "International (Andre Maestrini)"
+   "Legal (Shannon Higginson)"
+   "People & Culture (Susan Gelinas)"
+   "Supply Chain (Ted Dagnese)"
    "Technology (Julie Averill)"
 
 
@@ -1196,7 +1196,22 @@ data_full |>
 
 
 
+## 11 Grade creep ----
 
+data_clean_alerts_fixed |> 
+  filter(vacancy == "No",
+        leave_on_leave == "No",
+        str_detect(supervisory_organization_level_2, "CEO|MIRROR", negate = TRUE)) |> 
+  group_by(report_effective_date, supervisory_organization_level_2) |> 
+  summarise(cost = sum(annualized_fully_loaded_cost_usd, na.rm = TRUE),
+            hc = n()) |>
+  mutate(ave_cost = (cost/hc)/1000000) |> 
+  drop_na(supervisory_organization_level_2) |> 
+  ggplot(aes(x = report_effective_date, y = ave_cost, group = supervisory_organization_level_2)) +
+  geom_line() +
+  theme_clean_lulu() +
+  standard_text_x() +
+  standard_text_y()
 
 
 

@@ -37,14 +37,15 @@ data_clean <- data_orig |>
   filter(leave_on_leave == "No")
 
 
-oth_clean <- data_clean |> 
+
+oth_clean <- data_clean |> # Identifies all OTH flagged roles for removal from the dataset
   count(report_effective_date, position_id_workday) |> 
   filter(n>1) |> 
   select(-n) |> 
   inner_join(data_clean, by = c("report_effective_date", "position_id_workday")) |> 
   filter(str_detect(position_id_worker, "OTH"))
 
-data_clean_oth <- data_clean |> 
+data_clean_oth <- data_clean |> # Removes OTH roles
   anti_join(data_clean |> 
               count(report_effective_date, position_id_workday) |> 
               filter(n>1) |> 
@@ -53,20 +54,19 @@ data_clean_oth <- data_clean |>
   mutate(position_id_worker = if_else(str_detect(position_id_worker, "OTH"), position_id_workday, position_id_worker))
 
 
-data_clean_drs <- data_clean_oth |> 
+data_clean_drs <- data_clean_oth |> # Calculates direct report numbers to people managers
   left_join(data_clean |> 
               count(report_effective_date, position_id_manager), by = c("report_effective_date", "position_id_worker" = "position_id_manager")) |> 
   rename(direct_reports = n) 
   
-data_clean_managers <- data_clean_drs |>
+data_clean_managers <- data_clean_drs |> # Adds DR information to dataset
   left_join(data_clean |> 
               select(report_effective_date, readable_date, position_id_worker, position_id_manager, job_title, worker_name, compensation_grade, grade_score), 
             by = c("report_effective_date", "position_id_manager" = "position_id_worker"), suffix = c("_wkr", "_mgr")) |> 
   mutate(same_grade_reports = if_else(grade_score_wkr == grade_score_mgr, "Yes", NA))
 
 
-alerts <- data_clean_managers |> 
-  # filter(compensation_grade_mgr %in% c("M4", "M5","E1", "E2", "E3", "E4")) |> 
+alerts <- data_clean_managers |> # Creates flags for compression and gaps
   select(report_effective_date, position_id_worker, compensation_grade_wkr, grade_score_wkr, position_id_manager, compensation_grade_mgr, grade_score_mgr) |> 
   mutate(gap_raw = grade_score_mgr - grade_score_wkr,
          gap_comment = case_when(gap_raw == 0 ~ "Compressed",
@@ -88,7 +88,7 @@ alerts <- data_clean_managers |>
          alert_gaps = if_else(Gap >= percent(0.25, digits = 0), "Team gaps", NA))
 
 
-data_clean_alerts <- data_clean_managers |> 
+data_clean_alerts <- data_clean_managers |> # Add compression and gaops flags to main dataset
   left_join(alerts |> 
               select(report_effective_date, position_id_manager, alert_successors:alert_gaps),
             by = c("report_effective_date", "position_id_worker" = "position_id_manager")) 
@@ -102,9 +102,11 @@ dates_formatted <- data_clean_alerts |>
 
 ## Data fixes  ----
 
-data_clean_alerts_fixed <- data_clean_alerts |> 
+data_clean_alerts_fixed <- data_clean_alerts |> # various fixes for changes to the organization over time - mainly L2 and L3
   mutate(supervisory_organization_level_2 = case_when(supervisory_organization_level_2 == "Supply Chain, Distribution, Sourcing (Ted Dagnese)" ~ "Supply Chain (Ted Dagnese)",
-                                                      supervisory_organization_level_2 == "Design and Merchandising (Sun Choe)" ~ "Creative - Design and Concept (Jonathan Cheung)",
+                                                      supervisory_organization_level_2 == "Design and Merchandising (Sun Choe)" | supervisory_organization_level_2 == "Creative - Design and Concept (Jonathan Cheung)" ~ "Design (Jonathan Cheung)",
+
+
                                                       .default = supervisory_organization_level_2),
          
          supervisory_organization_level_3 = case_when(supervisory_organization_level_3 == "Raw Material Developments - Advanced Materials Innovation (Yogendra Dandapure)" ~ "Raw Materials Innovation (Yogendra Dandapure)",
@@ -159,15 +161,12 @@ data_clean_alerts_fixed <- data_clean_alerts |>
 
 ## Prepare data for analysis ----
 
-data_clean_alerts_fixed |> glimpse()
 
-data_clean_alerts_fixed |> 
-  tabyl(report_effective_date)
 
-data_full <- data_clean_alerts_fixed |> 
+data_full <- data_clean_alerts_fixed |> # full dataset filtered for 13 month view
   filter(report_effective_date > "2023-05-05")
 
-data_focus <- data_clean_alerts_fixed 
+data_focus <- data_clean_alerts_fixed # dataset ready for filtering by L2 or L3
 
 title_level <- "supervisory_organization_level_2"
 so_level <- "supervisory_organization_level_3"
@@ -1206,6 +1205,10 @@ data_clean_alerts_fixed |>
   summarise(cost = sum(annualized_fully_loaded_cost_usd, na.rm = TRUE),
             hc = n()) |>
   mutate(ave_cost = (cost/hc)/1000000) |> 
+
+  select(-cost, -hc) |> 
+  pivot_wider(id_cols = report_effective_date, names_from = supervisory_organization_level_2, values_from = ave_cost)
+
   drop_na(supervisory_organization_level_2) |> 
   ggplot(aes(x = report_effective_date, y = ave_cost, group = supervisory_organization_level_2)) +
   geom_line() +
@@ -1213,6 +1216,7 @@ data_clean_alerts_fixed |>
   standard_text_x() +
   standard_text_y()
 
+data_clean_alerts_fixed |> tabyl(report_effective_date, )
 
 
 ## Data packs  ---- 

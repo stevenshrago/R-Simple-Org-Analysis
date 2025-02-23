@@ -169,8 +169,10 @@ data_clean_alerts_fixed |>
 data_full <- data_clean_alerts_fixed |> # full dataset filtered for 13 month view
   filter(report_effective_date >= "2023-02-03")
 
+focus_target <- "International (Andre Maestrini)"
+
 data_focus <- data_full |> # dataset ready for filtering by L2 or L3
-  filter(supervisory_organization_level_2 == "International (Andre Maestrini)")
+  filter(supervisory_organization_level_2 == focus_target)
 
 title_level <- "supervisory_organization_level_2"
 so_level <- "supervisory_organization_level_3"
@@ -313,7 +315,7 @@ data_full |>
   mutate(high_ok_low = case_when(perc >= 0.25 ~ "high", # categorization of percentage levels against best practice
                                  perc <= 0.15 ~ "low",
                                  .default = "ok"),
-         label = if_else(report_effective_date == max(data_full$report_effective_date) & supervisory_organization_level_2 == "lululemon average", perc, NA),
+         label = if_else(report_effective_date == max(data_full$report_effective_date) & supervisory_organization_level_2 == focus_target, perc, NA),
          report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
   
   #filter(report_effective_date != "Aug 2023") |> 
@@ -321,7 +323,7 @@ data_full |>
   ggplot(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_2)) +
   # annotate("rect", xmin = 0.5, xmax = 6.5, ymin = 0.15, ymax = .25, fill = neutral_1) +
   geom_line(linewidth = 1, color = hotheat) +
-  gghighlight(supervisory_organization_level_2 == "lululemon average", line_label_type = "ggrepel_text", 
+  gghighlight(supervisory_organization_level_2 == focus_target, line_label_type = "ggrepel_text", 
               label_params = list(color = offwhite),
               unhighlighted_params = list(colour = neutral_1)) +
   geom_hline(yintercept = 0.15, color = neutral_3, linetype = "dashed") +
@@ -408,7 +410,7 @@ data_full |>
   summarise(n = n()) |>
   drop_na(exec) |> 
   pivot_wider(id_cols = c("report_effective_date", "supervisory_organization_level_2"), names_from = exec, values_from = n) |> 
-  summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |> tail(20) # percentages of exec roles 
+  summarise(exec_perc = percent(exec/(exec+non), digits = 1)) |>  # percentages of exec roles 
   
   left_join(data_full |> # lululemon averages
               mutate(exec = if_else(str_detect(compensation_grade_wkr, "E"), "exec", "non")) |> 
@@ -467,10 +469,10 @@ data_full |>
               mutate(supervisory_organization_level_2 = "lululemon average")) |>
   drop_na(supervisory_organization_level_2) |> 
   filter(str_detect(supervisory_organization_level_2, "CEO", negate = TRUE)) |> 
-  mutate(label = if_else(supervisory_organization_level_2 == "lululemon average" & report_effective_date == max(data_full$report_effective_date), exec_perc, NA),
+  mutate(label = if_else(supervisory_organization_level_2 == focus_target & report_effective_date == max(data_full$report_effective_date), exec_perc, NA),
          report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>  # classification of ranges for plot
   
-  filter(report_effective_date != "Aug 2023") |> 
+  
   
   ggplot(aes(x = report_effective_date, y = exec_perc, group = supervisory_organization_level_2)) +
   
@@ -479,10 +481,10 @@ data_full |>
   geom_hline(aes(yintercept = 0.02), color = neutral_4, linetype = "dashed") +
 
   geom_line(color = hotheat, size = 1) +
-  gghighlight(supervisory_organization_level_2 == "lululemon average", line_label_type = "ggrepel_text", 
+  gghighlight(supervisory_organization_level_2 == focus_target, line_label_type = "ggrepel_text", 
               label_params = list(color = offwhite),
               unhighlighted_params = list(colour = neutral_1)) +
-  geom_shadowtext(aes(x = report_effective_date, y = exec_perc, label = label), family = lulu_font, fontface = "bold", size = 7) +
+  geom_shadowtext(aes(label = label), family = lulu_font, fontface = "bold", size = 7) +
 
   labs(title = glue("Executive roles percentage"),
        subtitle = "VP+ roles as percentage of all SSC roles vs external benchmark (<=2%)",
@@ -492,12 +494,7 @@ data_full |>
   theme_clean_lulu() +
   standard_text_x(bold = FALSE, size = 12) +
   standard_text_y(bold = FALSE) +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0,0.07)) +
-  
-  scale_fill_manual(values = c("ok" = pale_green,
-                               "high" = hotheat)) +
-  scale_color_manual(values = c("ok" = offblack,
-                                "high" = offwhite))
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0,0.07))
 
 
 
@@ -557,8 +554,8 @@ data_focus |>
          report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
   
   ggplot() +
-  geom_line(aes(x = report_effective_date, y = perc, group = grade_score_wkr), color = offblack, size = 1) +
-  geom_line(aes(x = report_effective_date, y = ll_perc, group = grade_score_wkr), color = neutral_3, size = 0.5, linetype = "dashed") +
+  geom_line(aes(x = report_effective_date, y = perc, group = grade_score_wkr), color = offblack, linewidth = 1) +
+  geom_line(aes(x = report_effective_date, y = ll_perc, group = grade_score_wkr), color = neutral_3, linewidth = 0.5, linetype = "dashed") +
   geom_label(aes(label = ll_perc, x = report_effective_date, y = ll_perc), fill = offwhite, color = neutral_3, label.size = 0, family = lulu_font) +
   geom_label(aes(label = perc, x = report_effective_date, y = perc, fill = above_ave, color = above_ave), fontface = "bold", family = lulu_font) +
   facet_wrap(~ grade_score_wkr) +
@@ -575,7 +572,9 @@ data_focus |>
 
 ###### 5.1 Grade development all lululemon ----
 
+# focus on directors, managers and ICs
 data_full |>
+  filter(supervisory_organization_level_2 == focus_target) |> 
   mutate(compensation_grade_name = case_when(compensation_grade_name %in% c("Manager", "Senior Manager") ~ "Senior/Manager",
                                 compensation_grade_name %in% c("Director", "Senior Director") ~ "Senior/Director",
                                 compensation_grade_name %in% c("VP", "SVP", "EVP", "SLT") ~   "Executive",
@@ -586,13 +585,15 @@ data_full |>
   count(report_effective_date, compensation_grade_name) |>
   drop_na(compensation_grade_name) |> 
   group_by(report_effective_date) |> 
-  mutate(perc = percent(n/sum(n, na.rm = TRUE), digits = 1)) |> 
-  mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
+  mutate(perc = percent(n/sum(n, na.rm = TRUE), digits = 1),
+         label = if_else(report_effective_date == max(data_full$report_effective_date) |
+                        report_effective_date == min(data_full$report_effective_date), perc, NA ),  
+        report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
   filter(compensation_grade_name != "Executive") |> 
   
-  ggplot() +
-  geom_line(aes(x = report_effective_date, y = perc, group = compensation_grade_name), color = hotheat, size = 1) +
-  geom_shadowtext(aes(label = perc, x = report_effective_date, y = perc), fontface = "bold", family = lulu_font, size = 5) +
+  ggplot(aes(x = report_effective_date, y = perc)) +
+  geom_line(aes(group = compensation_grade_name), color = hotheat, size = 1) +
+  geom_shadowtext(aes(label = label), fontface = "bold", family = lulu_font, size = 5) +
   facet_wrap(~ compensation_grade_name, scales = "free_y", ncol = 1) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   theme_clean_lulu() +
@@ -606,13 +607,14 @@ data_full |>
   scale_color_manual(values = c("above" = offwhite,
                                 "ok" = offblack))
 
+# Focus  ICs
 data_full |> 
-  filter(compensation_grade_name == "Individual Contributor") |> 
+  filter(compensation_grade_name == "Individual Contributor",
+supervisory_organization_level_2 == focus_target) |> 
   count(report_effective_date, compensation_grade_wkr) |> 
   mutate(label = if_else(report_effective_date == max(data_full$report_effective_date) & compensation_grade_wkr %in% c("C1", "C2", "C3"), n, NA)) |> 
   mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>
   
-  filter(report_effective_date != "Aug 2023") |> 
   ggplot(aes(x = report_effective_date, y = n, group = compensation_grade_wkr)) +
   geom_line(color = hotheat, size = 1) +
   gghighlight(str_detect(compensation_grade_wkr, "C1|C2|C3"),
@@ -661,14 +663,13 @@ data_focus |>
   ) |> 
   
   mutate(above_ave = if_else(perc > ll_perc, "above", "ok"),
-         report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
+        label = if_else(report_effective_date == max(data_full$report_effective_date), perc, NA),
+        report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
   
-  ggplot() +
-  geom_line(aes(x = report_effective_date, y = perc, group = .data[[so_level]]), color = offblack, size = 1) +
-  geom_line(aes(x = report_effective_date, y = ll_perc, group = .data[[so_level]]), color = neutral_3, size = 0.5, linetype = "dotted") +
-  
-  geom_label(aes(x = report_effective_date, y = ll_perc, label = ll_perc), color = neutral_3, fill = offwhite, family = lulu_font, label.size = 0) +
-  geom_label(aes(x = report_effective_date, y = perc, label = perc, fill = above_ave, color = above_ave), family = lulu_font, fontface = "bold") +
+  ggplot(aes(x = report_effective_date, y = perc)) +
+  geom_line(aes(group = .data[[so_level]]), color = offblack, linewidth = 1) +
+  geom_line(aes(y = ll_perc, group = .data[[so_level]]), color = neutral_3, linewidth = 0.5, linetype = "dotted") +
+  geom_shadowtext(aes(label = label), color = offwhite, bg.colour = offblack, family = lulu_font, fontface = "bold") +
   
   facet_wrap(~ .data[[so_level]]) +
   theme_clean_lulu() +
@@ -737,21 +738,20 @@ data_focus |>
   replace_na(list(currently_active = "No")) |> 
   group_by(report_effective_date, .data[[so_level]]) |> 
   summarise(filled = percent(sum(n[currently_active == "Yes"])/ sum(n), digits = 0)) |>
-  mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>
   drop_na(.data[[so_level]]) |> 
   
   left_join(data_full |> 
               count(report_effective_date, currently_active) |> 
               replace_na(list(currently_active = "No")) |> 
               group_by(report_effective_date) |> 
-              summarise(ll_filled = percent(sum(n[currently_active == "Yes"])/ sum(n), digits = 0)) |>
-              mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)),
+              summarise(ll_filled = percent(sum(n[currently_active == "Yes"])/ sum(n), digits = 0)),
             by = "report_effective_date") |> 
   
   mutate(hi_lo = case_when(filled <0.8 ~ "lo",
                            filled >0.9 ~ "hi",
-                           .default = "ok")) |> 
-  
+                           .default = "ok"),
+         label = if_else(report_effective_date == max(data_full$report_effective_date), filled, NA),                  
+         report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>
   
   ggplot(aes(x = report_effective_date, group = .data[[so_level]])) +
   geom_rect(aes(xmin = 0.5, xmax = length(unique(data_focus$report_effective_date))+0.5, ymin = 0.8, ymax = .9), fill = neutral_1) +
@@ -759,7 +759,7 @@ data_focus |>
   geom_hline(yintercept = 0.8, color = neutral_3, linetype = "dashed") +
   geom_line(aes(y = filled)) +
   # geom_line(aes(y = ll_filled), linetype = "dashed") +  
-  geom_label(aes(label = filled, y = filled, fill = hi_lo, color = hi_lo), family = lulu_font, fontface = "bold") +
+  geom_shadowtext(aes(label = filled, y = filled, fill = hi_lo, color = hi_lo), bg.colour = offblack, family = lulu_font, fontface = "bold") +
   facet_wrap(~ .data[[so_level]]) +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE, size = 8) +
@@ -772,9 +772,9 @@ data_focus |>
   scale_fill_manual(values = c("lo" = hotheat,
                                "ok" = offwhite,
                                "hi"  = yellow)) +
-  scale_colour_manual(values = c("lo" = offwhite,
-                               "ok" = offblack,
-                               "hi"  = offblack))
+  scale_colour_manual(values = c("lo" = hotheat,
+                               "ok" = offwhite,
+                               "hi"  = yellow))
 
 
 ###### 7.1 Fill rate all lululemon  ----
@@ -937,12 +937,13 @@ data_focus |>
   replace_na(list(alert_compression = "Ok",
                   supervisory_organization_level_3 = "Exec leadership")) |> 
   summarise(compression_risk =  percent(sum(total[alert_compression == "Team compression"]) / sum(total),digits = 0)) |>
-  mutate(report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted),
+  mutate(label = if_else(report_effective_date == max(data_full$report_effective_date), compression_risk, NA),
+        report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted),
          compensation_grade_name = factor(compensation_grade_name, levels = c("Manager", "Senior Manager", "Director", "Senior Director","VP", "SVP", "EVP", "SLT"))
          ) |> 
   ggplot(aes(x = report_effective_date, y = compression_risk, group = compensation_grade_name)) +
   geom_line(colour = neutral_3) +
-  geom_label(aes(label = compression_risk), family = lulu_font, fill = blue, fontface = "bold") +
+  geom_shadowtext(aes(label = label), color = offwhite, bg.colour = offblack, family = lulu_font, fontface = "bold") +
   facet_wrap(~ compensation_grade_name) +
   theme_clean_lulu() +
   standard_text_y(bold = FALSE) +

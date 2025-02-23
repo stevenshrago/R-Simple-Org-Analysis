@@ -11,7 +11,7 @@ source("scripts/functions/helpers.r")
 
 data_orig <- readxl::read_xlsx("data_in/quarterly_data_original_w_country_q4.xlsx", sheet = 2, .name_repair = make_clean_names) 
 
-# extract_date <-  "2024-05-03"
+
 
 ## Clean & prepare data ----
 
@@ -103,6 +103,8 @@ dates_formatted <- data_clean_alerts |>
 ## Data fixes  ----
 
 data_clean_alerts_fixed <- data_clean_alerts |> # various fixes for changes to the organization over time - mainly L2 and L3
+    filter(str_detect(supervisory_organization_level_2, "MIRROR|CEO", negate = TRUE)) |> 
+  
   mutate(supervisory_organization_level_2 = case_when(supervisory_organization_level_2 == "Supply Chain, Distribution, Sourcing (Ted Dagnese)" ~ "Supply Chain (Ted Dagnese)",
                                                       supervisory_organization_level_2 == "Design and Merchandising (Sun Choe)" | supervisory_organization_level_2 == "Creative - Design and Concept (Jonathan Cheung)" ~ "Design (Jonathan Cheung)",
 
@@ -161,12 +163,14 @@ data_clean_alerts_fixed <- data_clean_alerts |> # various fixes for changes to t
 
 ## Prepare data for analysis ----
 
-
+data_clean_alerts_fixed |> 
+  tabyl(supervisory_organization_level_2, report_effective_date) |> view()
 
 data_full <- data_clean_alerts_fixed |> # full dataset filtered for 13 month view
-  filter(report_effective_date > "2023-05-05")
+  filter(report_effective_date >= "2023-02-03")
 
-data_focus <- data_clean_alerts_fixed # dataset ready for filtering by L2 or L3
+data_focus <- data_full |> # dataset ready for filtering by L2 or L3
+  filter(supervisory_organization_level_2 == "International (Andre Maestrini)")
 
 title_level <- "supervisory_organization_level_2"
 so_level <- "supervisory_organization_level_3"
@@ -236,101 +240,6 @@ data_full |>
          exec_perc = percent(execs/n, digits = 2))
 
 
-
-
-
-
-manager_id <- data_clean_alerts_fixed |> 
-  filter(str_detect(worker_name_wkr, "Borsoi")) |> 
-  pull(position_id_worker)
-
-
-(subordinates <- find_all_subordinates(manager_id, data_clean_alerts_fixed))
-
-datapasta::vector_paste(subordinates)c("83-131964", "83-089245", "83-110204", "83-077266", "83-153444", "83-225395", "83-166735", "83-153443", "83-186937", "83-109632", "83-151737", "00-0002", "83-153962")
-
-
-c("83-167854", "83-133921", "83-224957", "83-225420", "83-225048", "83-225419", "83-161700", "83-065853", "83-152141", "83-152157", "83-112902", "83-224869", "83-110204", "83-153444", "83-166735", "83-130955")
-
-
-data_full |>
-  mutate(job_title_wkr = tolower(job_title_wkr)) |> 
-  filter(report_effective_date == max(data_full$report_effective_date),
-         str_detect(job_title_wkr, regex_data)) |> 
-  count(supervisory_organization_level_4) |> 
-  mutate(total = sum(n)) |> view()
-  
-
-  data_full |> 
-    filter(report_effective_date == max(data_full$report_effective_date),
-           supervisory_organization_level_4 == "People Analytics (Kami Tilmann)") |> view()
-
-
-
-regex_data <- "data|insight|\b(?<!business\\s)analy|scient|report"
-
-
-data_full |> 
-  filter(report_effective_date == max(data_full$report_effective_date)) |> 
-  count(supervisory_organization_level_2, supervisory_organization_level_3, name = "employees") |> 
-  group_by(supervisory_organization_level_2) |> 
-  arrange(desc(employees), .by_group = TRUE) |>
-  left_join(data_full |> 
-              filter(report_effective_date == max(data_full$report_effective_date),
-                     compensation_grade_wkr %in% c("M5", "E1", "E2", "E3", "E4")) |> 
-              count(supervisory_organization_level_2, supervisory_organization_level_3, name = "execs"),
-            by = c("supervisory_organization_level_2", "supervisory_organization_level_3")) |>
-  drop_na(supervisory_organization_level_2, supervisory_organization_level_3) |> 
-  filter(employees < 50) |> 
-  view()
-  
-  
-
-
-data_full |> 
-  filter(report_effective_date == max(data_full$report_effective_date)) |> 
-  count(supervisory_organization_level_2, supervisory_organization_level_3, country, name = "employees") |> 
-  group_by(supervisory_organization_level_2, supervisory_organization_level_3) |> 
-  summarise(countries = sum(length(country))) |> 
-  group_by(supervisory_organization_level_2) |> 
-  arrange(desc(countries), .by_group = TRUE) |> 
-  drop_na(supervisory_organization_level_2, supervisory_organization_level_3) |> view()
-  filter(countries > 5) |> 
-  view()
-
-
-
-
-
-
-
-calculate_depth <- function(employee_id, employees_df) {
-  depth <- 0
-  visited <- c()
-  current_id <- employee_id
-  
-  while (!is.na(current_id) && !(current_id %in% visited)) {
-    depth <- depth + 1
-    visited <- c(visited, current_id)
-    current_id <- employees_df$position_id_manager[employees_df$position_id_worker == current_id]
-    if (length(current_id) == 0) break
-    current_id <- current_id[1]  # In case of multiple matches, take the first one
-  }
-  
-  # if (current_id %in% visited) {
-  #   warning("Circular reference detected for employee ", employee_id)
-  #   return(NA)
-  # }
-  
-  return(depth)
-}
-
-data_clean_alerts_fixed |> 
-  filter(report_effective_date == max(data_clean_alerts_fixed$report_effective_date)) |> 
-  rowwise() |> 
-  mutate(depth = calculate_depth(position_id_worker, data_clean_alerts_fixed)) |> view()
-
-
 ## 1 Manager Percentages  ---- 
 
 
@@ -358,20 +267,17 @@ data_focus |>
   ungroup() |> 
   mutate(trim = if_else(report_effective_date == max(data_full$report_effective_date) & is.na(perc), .data[[so_level]], NA)) |>
   filter(!.data[[so_level]] %in% trim) |> 
-  mutate(high_ok_low = case_when(perc >= 0.25 ~ "high", # categorization of percentage levels against best practice
-                                 perc <= 0.15 ~ "low",
-                                 .default = "ok"),
-         report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
+  mutate(label = if_else(report_effective_date == max(data_full$report_effective_date), perc, NA),
+report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |>
   
-  ggplot() +
+  ggplot(aes(x = report_effective_date, y = perc)) +
   geom_rect(aes(xmin = 0, xmax = length(unique(data_focus$report_effective_date))+1, ymin = 0.15, ymax = .25), fill = neutral_1) +
-  geom_line(aes(x = report_effective_date, y = ll_perc, group = .data[[so_level]]), color = offblack, size = 0.5, linetype = "dashed") +
-  geom_line(aes(x = report_effective_date, y = perc, group = .data[[so_level]]), color = neutral_3, size = 1) +
+  geom_line(aes(y = ll_perc, group = .data[[so_level]]), color = offblack, linewidth = 0.5, linetype = "dashed") +
+  geom_line(aes(group = .data[[so_level]]), color = hotheat, linewidth = 1) +
   facet_wrap(~ .data[[so_level]]) +
   geom_hline(yintercept = 0.15, color = neutral_3, linetype = "dotted") +
   geom_hline(yintercept = 0.25, color = neutral_3, linetype = "dotted") +
-  geom_label(aes(x = report_effective_date, y = ll_perc, label = ll_perc), fill = offwhite, color = neutral_3, family = lulu_font, label.size = 0) +
-  geom_label(aes(x = report_effective_date, y = perc, label = perc, fill = high_ok_low, color = high_ok_low), family = lulu_font, fontface = "bold") +
+  geom_shadowtext(aes(label = label), color = offwhite, bg.colour = offblack, family = lulu_font, fontface = "bold") +
   theme_clean_lulu() +
   standard_text_y(bold = FALSE) +
   standard_text_x(bold = FALSE, size = 8) +
@@ -380,13 +286,7 @@ data_focus |>
        subtitle = "Line managers as a percentage of roles over time vs lululemon average and external benchmark (15-25%)",
        x = "Date",
        y = "Manager perentage",
-       caption = "Excludes leaves and non-SSC workforce.") +
-  scale_fill_manual(values = c("high" = hotheat,
-                               "ok" = pale_green,
-                               "low" = blue)) +
-  scale_color_manual(values = c("high" = offwhite,
-                                "ok" = offblack,
-                                "low" = offblack))
+       caption = "Excludes leaves and non-SSC workforce.")
 
 ###### 1.1 Manager percentages ALL  ----
 
@@ -416,11 +316,11 @@ data_full |>
          label = if_else(report_effective_date == max(data_full$report_effective_date) & supervisory_organization_level_2 == "lululemon average", perc, NA),
          report_effective_date = factor(format(report_effective_date, "%b %Y"), levels = dates_formatted)) |> 
   
-  filter(report_effective_date != "Aug 2023") |> 
+  #filter(report_effective_date != "Aug 2023") |> 
   
   ggplot(aes(x = report_effective_date, y = perc, group = supervisory_organization_level_2)) +
   # annotate("rect", xmin = 0.5, xmax = 6.5, ymin = 0.15, ymax = .25, fill = neutral_1) +
-  geom_line(size = 1, color = hotheat) +
+  geom_line(linewidth = 1, color = hotheat) +
   gghighlight(supervisory_organization_level_2 == "lululemon average", line_label_type = "ggrepel_text", 
               label_params = list(color = offwhite),
               unhighlighted_params = list(colour = neutral_1)) +
@@ -1204,10 +1104,10 @@ data_clean_alerts_fixed |>
   group_by(report_effective_date, supervisory_organization_level_2) |> 
   summarise(cost = sum(annualized_fully_loaded_cost_usd, na.rm = TRUE),
             hc = n()) |>
-  mutate(ave_cost = (cost/hc)/1000000) |> 
+  mutate(ave_cost = cost/hc) |> 
 
   select(-cost, -hc) |> 
-  pivot_wider(id_cols = report_effective_date, names_from = supervisory_organization_level_2, values_from = ave_cost)
+  pivot_wider(id_cols = report_effective_date, names_from = supervisory_organization_level_2, values_from = ave_cost) |> view()
 
   drop_na(supervisory_organization_level_2) |> 
   ggplot(aes(x = report_effective_date, y = ave_cost, group = supervisory_organization_level_2)) +

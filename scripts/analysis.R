@@ -1098,21 +1098,21 @@ data_full |>
 
 ## 11 Grade creep ----
 
-data_clean_alerts_fixed |> 
-  filter(vacancy == "No",
-        leave_on_leave == "No",
-        str_detect(supervisory_organization_level_2, "CEO|MIRROR", negate = TRUE)) |> 
-  group_by(report_effective_date, supervisory_organization_level_2) |> 
+data_focus |> 
+  filter(vacancy == "No") |> 
+  group_by(report_effective_date, supervisory_organization_level_3) |> 
   summarise(cost = sum(annualized_fully_loaded_cost_usd, na.rm = TRUE),
             hc = n()) |>
   mutate(ave_cost = cost/hc) |> 
 
   select(-cost, -hc) |> 
-  pivot_wider(id_cols = report_effective_date, names_from = supervisory_organization_level_2, values_from = ave_cost) |> view()
+  drop_na(supervisory_organization_level_3) |> 
+  #pivot_wider(id_cols = report_effective_date, names_from = supervisory_organization_level_3, values_from = ave_cost) |> 
 
-  drop_na(supervisory_organization_level_2) |> 
-  ggplot(aes(x = report_effective_date, y = ave_cost, group = supervisory_organization_level_2)) +
+ 
+  ggplot(aes(x = report_effective_date, y = ave_cost, group = supervisory_organization_level_3)) +
   geom_line() +
+  facet_wrap(~ supervisory_organization_level_3) +
   theme_clean_lulu() +
   standard_text_x() +
   standard_text_y()

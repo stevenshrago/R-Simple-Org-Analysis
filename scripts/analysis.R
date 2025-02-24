@@ -4,6 +4,7 @@ p_load(
   janitor,
   glue,
   datapasta,
+  scales,
   formattable,
   showtext,
   WriteXLS,
@@ -13,8 +14,7 @@ p_load(
   tidygraph,
   ggraph,
   shadowtext,
-  gghighlight,
-  scales
+  gghighlight
 )
 
 source("scripts/functions/helpers.r")
@@ -493,7 +493,8 @@ data_focus |>
     color = offwhite,
     bg.colour = offblack,
     family = lulu_font,
-    fontface = "bold"
+    fontface = "bold",
+    size = 5
   ) +
   theme_clean_lulu() +
   standard_text_y(bold = FALSE) +
@@ -1077,7 +1078,8 @@ data_focus |>
     color = offwhite,
     bg.colour = offblack,
     family = lulu_font,
-    fontface = "bold"
+    fontface = "bold",
+    size = 5
   ) +
 
   facet_wrap(~ .data[[so_level]]) +
@@ -1239,13 +1241,14 @@ data_focus |>
   ) +
   geom_hline(yintercept = 0.9, color = neutral_3, linetype = "dashed") +
   geom_hline(yintercept = 0.8, color = neutral_3, linetype = "dashed") +
-  geom_line(aes(y = filled), color = hotheat) +
+  geom_line(aes(y = filled), color = hotheat, linewidth = 1) +
   # geom_line(aes(y = ll_filled), linetype = "dashed") +
   geom_shadowtext(
     aes(label = filled, y = label, color = hi_lo),
     bg.colour = offblack,
     family = lulu_font,
-    fontface = "bold"
+    fontface = "bold",
+    size = 5
   ) +
   facet_wrap(~ .data[[so_level]]) +
   theme_clean_lulu() +
@@ -1606,7 +1609,8 @@ data_focus |>
     color = offwhite,
     bg.colour = offblack,
     family = lulu_font,
-    fontface = "bold"
+    fontface = "bold",
+    size = 5
   ) +
   facet_wrap(~compensation_grade_name) +
   theme_clean_lulu() +
@@ -1615,11 +1619,15 @@ data_focus |>
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   labs(
     title = glue(
-      "Structural compression risk by grade over time - {title_name}"
+      "Structural compression risk - {title_name}"
     ),
-    subtitle = "Percentage of teams featuring same contribution grade reporting and/or more than 30% of roles within one grade level of the manager",
+    subtitle = glue(
+      "Percentage of teams featuring same contribution grade reporting
+    and/or more than 30% of roles within one grade level of the manager"
+    ),
     x = "Date",
-    y = "Percentage of compressed teams"
+    y = "Percentage of compressed teams",
+    caption = "Excludes leaves. SSC only."
   )
 
 
@@ -1894,7 +1902,7 @@ data_focus |>
   scale_y_continuous(labels = dollar_format(prefix = "$", suffix = "K")) +
   labs(
     title = glue("People cost over time: {focus_target}"),
-    subtitle = "Average total cost of employment (CAD)",
+    subtitle = "Average total cost of employment (CAD), excluding vacant roles",
     y = "Relative Growth Rate",
     size = "Team Proportion",
     caption = "Excluding vacant roles and leaves. SSC roles only."

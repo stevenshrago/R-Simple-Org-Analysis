@@ -565,7 +565,7 @@ data_focus |>
 
 # focus on directors, managers and ICs
 data_full |>
-  filter(supervisory_organization_level_2 == focus_target) |>
+  #filter(supervisory_organization_level_2 == focus_target) |>
   mutate(
     compensation_grade_name = case_when(
       compensation_grade_name %in% c("Manager", "Senior Manager") ~
@@ -617,7 +617,7 @@ data_full |>
   theme(strip.background = element_rect(fill = neutral_1)) +
   standard_text_x(bold = FALSE) +
   labs(
-    title = glue("Grade development: {focus_target}"),
+    title = glue("Grade development: All SSC"),
     subtitle = "Percentage of roles at IC, manager and director contribution levels over time",
     x = "Compensation grade levels"
   ) +
@@ -1508,10 +1508,10 @@ data_full |>
     x = report_effective_date,
     y = relative_growth,
     size = team_perc,
-    color = supervisory_organization_level_2
+    color = hotheat
   )) +
   geom_line() +
-  geom_point(shape = 21, fill = offwhite) +
+  geom_point(shape = 21, fill = hotheat) +
 
   geom_hline(yintercept = 0, linetype = "dashed") +
   geom_text(
@@ -1539,15 +1539,29 @@ data_full |>
 
 ## 11 People cost creep ----
 
-data_focus |>
+data_full |>
   filter(vacancy == "No") |>
-  group_by(report_effective_date, supervisory_organization_level_3) |>
+  group_by(report_effective_date, supervisory_organization_level_2) |>
   summarise(
     cost = sum(annualized_fully_loaded_cost_usd, na.rm = TRUE),
     hc = n()
   ) |>
   mutate(
-    ave_cost = round((cost / hc) / 1000, digits = 0),
+    ave_cost = round((cost / hc) / 1000, digits = 0)
+  ) |>
+  bind_rows(
+    data_full |>
+      filter(vacancy == "No") |>
+      group_by(report_effective_date) |>
+      summarise(
+        cost = sum(annualized_fully_loaded_cost_usd, na.rm = TRUE),
+        hc = n()
+      ) |>
+      mutate(ave_cost = round((cost / hc) / 1000, digits = 0)) |>
+      mutate(supervisory_organization_level_2 = "lululemon average")
+  ) |>
+
+  mutate(
     label = if_else(
       report_effective_date == max(data_full$report_effective_date) |
         report_effective_date == min(data_full$report_effective_date),
@@ -1561,22 +1575,28 @@ data_focus |>
   ) |>
 
   select(-cost, -hc) |>
-  drop_na(supervisory_organization_level_3) |>
+  drop_na(supervisory_organization_level_2) |>
 
   ggplot(aes(
     x = report_effective_date,
     y = ave_cost,
-    group = supervisory_organization_level_3
+    group = supervisory_organization_level_2
   )) +
   geom_line(color = hotheat, linewidth = 1) +
+
+  gghighlight(
+    supervisory_organization_level_2 == "lululemon average",
+    line_label_type = "ggrepel_text",
+    label_params = list(color = NA),
+    unhighlighted_params = list(colour = neutral_1)
+  ) +
   geom_shadowtext(aes(label = label), size = 5) +
-  facet_wrap(~supervisory_organization_level_3) +
   theme_clean_lulu() +
   standard_text_x(bold = FALSE, size = 10) +
   standard_text_y(bold = FALSE) +
   scale_y_continuous(labels = dollar_format(prefix = "$", suffix = "K")) +
   labs(
-    title = glue("People cost over time: {focus_target}"),
+    title = glue("People cost over time: All SSC"),
     subtitle = "Average total cost of employment (CAD), excluding vacant roles",
     y = "Relative Growth Rate",
     size = "Team Proportion",
